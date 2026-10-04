@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default locale = French (TANY reference language). EN / AR in values-en / values-ar. -->
+<resources>
+    <string name="tany_action_retry">Réessayer</string>
+    <string name="tany_action_close">Fermer</string>
+    <string name="tany_action_cancel">Annuler</string>
+    <string name="tany_action_back">Retour</string>
+    <string name="tany_state_loading">Chargement…</string>
+    <string name="tany_error_title">Une erreur est survenue</string>
+    <string name="tany_cd_product_image">Photo de l’objet</string>
+    <string name="tany_cd_image_unavailable">Photo indisponible</string>
+</resources>

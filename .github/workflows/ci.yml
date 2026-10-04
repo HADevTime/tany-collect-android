@@ -1,0 +1,61 @@
+name: CI
+
+# Cost-optimized: runs on pull requests only (a merged PR was already validated — no duplicate run on main),
+# one Linux job, no emulator (Compose UI tests run on the JVM with Robolectric), superseded runs cancelled.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Build · lint · unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit + contract tests (JVM modules)
+        run: ./gradlew --stacktrace :core:model:test :core:network:test
+
+      - name: Design system tests (Compose on Robolectric)
+        run: ./gradlew --stacktrace :core:designsystem:testDebugUnitTest
+
+      - name: App unit tests (every variant — environment isolation)
+        run: ./gradlew --stacktrace :app:testDebugUnitTest :app:testStagingUnitTest :app:testReleaseUnitTest
+
+      - name: Android lint
+        run: ./gradlew --stacktrace --continue :core:designsystem:lintDebug :app:lintDebug
+
+      - name: Build STAGING and PROD variants
+        run: ./gradlew --stacktrace :app:assembleStaging :app:assembleRelease
+
+      - name: Upload STAGING APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tany-collect-staging-apk
+          path: app/build/outputs/apk/staging/*.apk
+          retention-days: 7
+
+      - name: Upload reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            **/build/reports/
+            **/build/test-results/
+          retention-days: 7

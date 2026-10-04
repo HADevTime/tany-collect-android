@@ -176,8 +176,8 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
                 BookingDetailScreen(
                     pointId = pointId,
                     onBack = { navController.popBackStack() },
-                    onScanCustomer = { id -> navController.navigate(OperationScanRoute(id, ScanTarget.BOOKING_QR.name, QrPurpose.PICKUP.wire)) },
-                    onScanAsset = { id -> navController.navigate(OperationScanRoute(id, ScanTarget.ASSET_LABEL.name, QrPurpose.PICKUP.wire)) },
+                    onScanCustomer = { id, purpose -> navController.navigate(OperationScanRoute(id, ScanTarget.BOOKING_QR.name, purpose.wire)) },
+                    onScanAsset = { id, purpose -> navController.navigate(OperationScanRoute(id, ScanTarget.ASSET_LABEL.name, purpose.wire)) },
                 )
             }
             if (InternalTools.enabled) {

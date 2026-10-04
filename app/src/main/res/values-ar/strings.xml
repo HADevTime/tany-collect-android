@@ -171,4 +171,22 @@
     <string name="pickup_step_customer_confirms">أكّد الزبون الاستلام</string>
     <string name="pickup_waiting_customer">تم تسليم الغرض: في انتظار تأكيد الزبون في TANY.</string>
     <string name="pickup_complete_before">يجب الإتمام قبل</string>
+    <string name="return_title">استلام الإرجاع</string>
+    <string name="return_step_customer">تم التحقق من رمز QR للإرجاع الخاص بالزبون</string>
+    <string name="return_missing_title">ملحقات مفقودة</string>
+    <string name="return_incident_title">مشكلة تمت ملاحظتها</string>
+    <string name="return_incident_none">لا توجد مشكلة</string>
+    <string name="return_incident_damaged">الغرض متضرّر</string>
+    <string name="return_incident_missing">ملحق مفقود</string>
+    <string name="return_incident_dirty">الغرض متّسخ جدًا</string>
+    <string name="return_incident_other">مشكلة أخرى</string>
+    <string name="return_incident_description">صِف المشكلة</string>
+    <string name="return_step_statement">تم تسجيل الإرجاع</string>
+    <string name="return_statement_action">تأكيد استلام الغرض</string>
+    <string name="return_statement_title">تأكيد الاستلام؟</string>
+    <string name="return_statement_message">تؤكّد أنك استرجعت الغرض في حالة جيدة. يجب على الزبون تأكيد الإرجاع في TANY.</string>
+    <string name="return_statement_message_issue">تؤكّد أنك استرجعت الغرض مع المشكلة المذكورة. يجب على الزبون تأكيد الإرجاع في TANY، ثم تقرّر TANY بشأن مبلغ الضمان.</string>
+    <string name="return_statement_cta">أؤكّد الاستلام</string>
+    <string name="return_step_customer_confirms">أكّد الزبون الإرجاع</string>
+    <string name="return_waiting_customer">تم تسجيل الإرجاع: في انتظار تأكيد الزبون في TANY.</string>
 </resources>

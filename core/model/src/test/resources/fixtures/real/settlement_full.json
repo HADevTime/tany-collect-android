@@ -1,0 +1,105 @@
+{
+  "enabled": true,
+  "collectPointId": "cp-maarif",
+  "currency": "MAD",
+  "serverTime": "2026-10-04T20:24:30.331Z",
+  "configured": true,
+  "method": {
+    "code": "CASH_AGENT_COLLECTION",
+    "label": "Espèces remises à un agent TANY"
+  },
+  "policyLabel": "Espèces remises à un agent TANY — relevé à la demande de TANY, à régler sous 3 j.",
+  "policy": {
+    "method": "CASH_AGENT_COLLECTION",
+    "cadence": "MANUAL",
+    "anchorWeekday": null,
+    "minAmount": null,
+    "dueDays": 3
+  },
+  "summary": {
+    "status": "DUE",
+    "headline": "Règlement TANY",
+    "amountDue": 28,
+    "amountDueCents": 2800,
+    "alreadyCollected": 0,
+    "alreadyCollectedCents": 0,
+    "overdue": false,
+    "dueAt": "2026-10-07T23:00:00.000Z",
+    "nextVisit": {
+      "date": "2026-10-04",
+      "label": "Passage prévu dimanche 4 oct.",
+      "agentName": "Admin T. · Agent TANY"
+    },
+    "lastCompleted": null,
+    "lastPartialRemaining": null
+  },
+  "breakdown": {
+    "rentalRevenue": 535,
+    "commission": 107,
+    "bonus": 400,
+    "partnerAdjustments": 0,
+    "tanyRentalShare": 28,
+    "depositsRetained": 0,
+    "settlementAdjustments": 0,
+    "total": 28,
+    "alreadyCollected": 0,
+    "remaining": 28,
+    "totalCents": 2800,
+    "remainingCents": 2800
+  },
+  "upcoming": null,
+  "heldDeposits": {
+    "count": 10,
+    "amount": 2650,
+    "label": "Cautions clients encore détenues",
+    "note": "Non incluses dans le règlement — ne pas remettre à l'agent TANY."
+  },
+  "activeCollection": {
+    "id": "2000d7cd-7f49-4997-848d-ef6f3dd2f32c",
+    "reference": "REC-00001",
+    "status": "SCHEDULED",
+    "statusLabel": "Passage planifié",
+    "method": "CASH_AGENT_COLLECTION",
+    "methodLabel": "Espèces remises à un agent TANY",
+    "scheduledFor": "2026-10-04",
+    "scheduledLabel": "Passage prévu dimanche 4 oct.",
+    "agentName": "Admin T. · Agent TANY",
+    "agentPersonName": "Admin T.",
+    "expectedAmount": null,
+    "expectedAmountCents": null,
+    "agentConfirmedAmount": null,
+    "agentConfirmedAmountCents": null,
+    "agentConfirmationId": null,
+    "discrepancyReason": null,
+    "declaredRemainingAmount": null,
+    "declaredRemainingAmountCents": null,
+    "receivedAmount": null,
+    "receivedAmountCents": null,
+    "remainingAmount": null,
+    "remainingAmountCents": null,
+    "startedAt": null,
+    "agentConfirmedAt": null,
+    "completedAt": null,
+    "confirmedByTany": false,
+    "qrAvailable": true,
+    "confirmationRequired": false
+  },
+  "statements": [
+    {
+      "id": "5cc3da24-e1d4-4973-b9cc-3be03e31c258",
+      "reference": "REG-00001",
+      "periodLabel": "4–4 oct.",
+      "periodStart": "2026-10-04T16:09:29.519Z",
+      "cutoffAt": "2026-10-04T20:24:30.875Z",
+      "totalDue": 28,
+      "collected": 0,
+      "outstanding": 28,
+      "status": "DUE",
+      "statusLabel": "À régler",
+      "overdue": false,
+      "dueAt": "2026-10-07T23:00:00.000Z"
+    }
+  ],
+  "history": [],
+  "disclaimer": "Montant calculé selon votre accord TANY. Il n'est considéré comme remis qu'après votre confirmation et celle de l'agent TANY. Les cautions clients ne font jamais partie du règlement."
+}

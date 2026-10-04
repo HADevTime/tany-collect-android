@@ -112,6 +112,42 @@ class RealCollectFixturesTest {
     }
 
     @Test
+    fun revenueSubObjectsAreTyped() {
+        val revenue = Fixtures.decode<RevenueOverview>(real("revenue_full"))
+        val bonus = requireNotNull(revenue.bonus)
+        assertEquals(3, bonus.unlockedCount)
+        assertTrue(bonus.tiers.any { it.metric == ma.tany.core.model.collect.RevenueMetric.RENTAL_REVENUE && it.threshold == ma.tany.core.model.common.MoneyAmount.ofMajor(1000) })
+        assertEquals(ma.tany.core.model.collect.RevenueActionKind.HAND_BACK_DEPOSIT, revenue.actions.first().kind)
+        assertEquals(20.0, revenue.agreement!!.commissionRatePercent!!, 0.0)
+        assertTrue(revenue.activity.isNotEmpty())
+    }
+
+    @Test
+    fun settlementCollectionsAreTyped() {
+        val scheduled = Fixtures.decode<SettlementOverview>(real("settlement_full"))
+        assertTrue(scheduled.activeCollection!!.qrAvailable)
+        assertEquals("CASH_AGENT_COLLECTION", scheduled.method!!.code)
+        assertTrue(scheduled.statements.isNotEmpty())
+        val awaiting = Fixtures.decode<SettlementOverview>(real("settlement_awaiting")).activeCollection!!
+        assertTrue(awaiting.confirmationRequired)
+        assertEquals(18620L, awaiting.agentConfirmedAmountCents)
+        assertNotNull(awaiting.agentConfirmationId)
+        val done = Fixtures.decode<SettlementOverview>(real("settlement_confirmed"))
+        assertEquals(ma.tany.core.model.collect.CollectionStatus.PARTIALLY_COLLECTED, done.history.first().status)
+        assertEquals(ma.tany.core.model.common.MoneyAmount.ofMajor(5), done.summary!!.lastPartialRemaining)
+        val qr = Fixtures.decode<ma.tany.core.model.collect.SettlementQr>(real("settlement_qr"))
+        assertTrue(qr.qrPayload.startsWith("TCR1."))
+    }
+
+    @Test
+    fun notificationsAndAssetDetailFromScenarios() {
+        val page = Fixtures.decode<NotificationsPage>(real("notifications_full"))
+        assertTrue(page.notifications.all { it.collectPointId == "cp-maarif" })
+        assertTrue(page.notifications.any { it.deepLink == "tanycollect://revenue/settlement" })
+        Fixtures.decode<AssetDetailResponse>(real("asset_detail_full"))
+    }
+
+    @Test
     fun merchantNotificationsCarryThePoint() {
         val page = Fixtures.decode<NotificationsPage>(real("notifications"))
         assertTrue(page.notifications.all { it.collectPointId == "cp-maarif" })

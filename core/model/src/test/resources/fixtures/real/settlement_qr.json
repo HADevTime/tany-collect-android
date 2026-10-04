@@ -1,0 +1,10 @@
+{
+  "qrPayload": "TCR1.1ab401e4-6f7c-46f4-a199-ba8489a08fd5.8anybO7JDcdOEyHDKPh4j7P2591v1zVYNMZcD3hDzn8",
+  "shortCode": "844310",
+  "expiresAt": "2026-10-04T20:26:00.386Z",
+  "expectedAmount": 28,
+  "expectedAmountCents": 2800,
+  "collectionId": "2000d7cd-7f49-4997-848d-ef6f3dd2f32c",
+  "collectionReference": "REC-00001",
+  "purpose": "SETTLEMENT_COLLECTION"
+}

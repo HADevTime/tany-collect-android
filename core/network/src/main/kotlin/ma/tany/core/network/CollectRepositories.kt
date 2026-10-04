@@ -2,6 +2,7 @@ package ma.tany.core.network
 
 import kotlinx.coroutines.CancellationException
 import ma.tany.core.model.collect.ActivityResponse
+import ma.tany.core.model.collect.AssetDetail
 import ma.tany.core.model.collect.AssetsResponse
 import ma.tany.core.model.collect.CollectAuthResponse
 import ma.tany.core.model.collect.CollectMe
@@ -75,6 +76,9 @@ interface CollectRepository {
 
     /** `enabled:false` when the equipment module is OFF. */
     suspend fun assets(pointId: String): ApiResult<AssetsResponse>
+
+    /** Read-only asset sheet (no customer data). */
+    suspend fun asset(pointId: String, assetId: String): ApiResult<AssetDetail>
 }
 
 class DefaultCollectRepository(private val api: TanyCollectApi) : CollectRepository {
@@ -87,4 +91,6 @@ class DefaultCollectRepository(private val api: TanyCollectApi) : CollectReposit
     override suspend fun booking(bookingId: String, pointId: String) = apiCall { api.booking(bookingId, pointId).booking }
 
     override suspend fun assets(pointId: String) = apiCall { api.assets(pointId) }
+
+    override suspend fun asset(pointId: String, assetId: String) = apiCall { api.asset(pointId, assetId).asset }
 }

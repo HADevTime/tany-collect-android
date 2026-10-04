@@ -19,8 +19,10 @@ class OperationPhotoFiles(private val context: Context) {
 
     fun newCaptureFile(): Pair<File, Uri> {
         val file = File(directory, "op-${UUID.randomUUID()}.jpg")
-        return file to FileProvider.getUriForFile(context, "${context.packageName}.photos", file)
+        return file to uriFor(file)
     }
+
+    fun uriFor(file: File): Uri = FileProvider.getUriForFile(context, "${context.packageName}.photos", file)
 
     fun delete(file: File) {
         file.delete()

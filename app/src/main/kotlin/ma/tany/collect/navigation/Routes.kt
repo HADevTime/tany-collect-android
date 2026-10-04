@@ -19,6 +19,12 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class BookingRoute(val bookingId: String)
 
+/**
+ * Scanner bound to one booking step: [target] = `BOOKING_QR` (customer QR / 6-digit code) or `ASSET_LABEL`;
+ * [purpose] = QR purpose wire value (`PICKUP`…). The server checks everything; the booking screen re-reads on return.
+ */
+@Serializable data class OperationScanRoute(val bookingId: String, val target: String, val purpose: String)
+
 @Serializable data object ShowcaseRoute
 
 @Serializable data object AuthPhoneRoute

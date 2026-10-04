@@ -2,9 +2,12 @@
 
 Native Android app for TANY Collect merchants (Kotlin · Jetpack Compose · Material 3 + TANY design system):
 **operate / verify / hand over / receive**. TANY Client (customers) lives in `HADevTime/tany-android`.
-**Status: foundation.** Architecture, networking, merchant auth + active point, design system, localization,
-QR/camera and photo foundations, and CI are in place. The pickup, return, deposit, revenue and settlement flows
-come next as vertical slices.
+**Status: slices in progress (STAGING).** Foundation (architecture, networking, merchant auth + active point,
+design system, localization, QR/camera and photo foundations, CI) plus the **pickup preparation**: Scanner tab
+(`POST /collect/scan` resolves the booking), and on the booking a checklist of the server's facts — customer QR,
+item label (`asset_mismatch` from the server), photo(s) with declared condition, cash received (the server's amount
+due sent back exactly), handover — then the customer confirms in TANY. The return, deposit, revenue and settlement
+flows come next.
 
 ## Source of truth
 

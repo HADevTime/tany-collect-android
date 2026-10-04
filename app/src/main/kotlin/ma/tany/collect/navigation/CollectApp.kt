@@ -49,7 +49,9 @@ import ma.tany.collect.feature.auth.PhoneScreen
 import ma.tany.collect.feature.booking.BookingDetailScreen
 import ma.tany.collect.feature.equipment.EquipmentScreen
 import ma.tany.collect.feature.point.PointPickerScreen
-import ma.tany.collect.feature.scanner.ScannerScreen
+import ma.tany.collect.feature.operations.OperationScanScreen
+import ma.tany.collect.feature.scanner.ScanTarget
+import ma.tany.core.model.common.QrPurpose
 import ma.tany.collect.feature.today.TodayScreen
 import ma.tany.collect.internal.InternalTools
 import ma.tany.core.designsystem.R as DsR
@@ -148,7 +150,13 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
             composable<TodayRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.TODAY })) {
                 TodayScreen(pointId = pointId, pointName = pointName, onOpenBooking = openBooking)
             }
-            composable<ScanRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.SCAN })) { ScannerScreen() }
+            composable<ScanRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.SCAN })) {
+                // Scanner tab: the server resolves the booking and the purpose from the customer's code.
+                OperationScanScreen(pointId = pointId, onDone = openBooking, onBack = null)
+            }
+            composable<OperationScanRoute> {
+                OperationScanScreen(pointId = pointId, onDone = { navController.popBackStack() }, onBack = { navController.popBackStack() })
+            }
             composable<ActivityRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.ACTIVITY })) {
                 ActivityScreen(pointId = pointId, onOpenBooking = openBooking)
             }
@@ -165,7 +173,12 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
             composable<BookingRoute>(
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.BOOKING }, navDeepLink { uriPattern = DeepLinks.RETURN }),
             ) {
-                BookingDetailScreen(pointId = pointId, onBack = { navController.popBackStack() })
+                BookingDetailScreen(
+                    pointId = pointId,
+                    onBack = { navController.popBackStack() },
+                    onScanCustomer = { id -> navController.navigate(OperationScanRoute(id, ScanTarget.BOOKING_QR.name, QrPurpose.PICKUP.wire)) },
+                    onScanAsset = { id -> navController.navigate(OperationScanRoute(id, ScanTarget.ASSET_LABEL.name, QrPurpose.PICKUP.wire)) },
+                )
             }
             if (InternalTools.enabled) {
                 composable<ShowcaseRoute> { InternalTools.Showcase(onBack = { navController.popBackStack() }) }

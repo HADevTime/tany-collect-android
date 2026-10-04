@@ -1,0 +1,221 @@
+package ma.tany.collect
+
+import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+import ma.tany.collect.core.media.OperationImageMath
+import ma.tany.collect.core.media.OperationPhotos
+import ma.tany.collect.core.ui.LoadState
+import ma.tany.collect.feature.booking.BookingDetailViewModel
+import ma.tany.collect.feature.operations.OperationScanViewModel
+import ma.tany.collect.feature.scanner.ScanInput
+import ma.tany.collect.feature.scanner.ScanTarget
+import ma.tany.core.model.collect.ActivityResponse
+import ma.tany.core.model.collect.AssetScanBody
+import ma.tany.core.model.collect.AssetsResponse
+import ma.tany.core.model.collect.CollectMe
+import ma.tany.core.model.collect.MerchantBookingDetail
+import ma.tany.core.model.collect.MerchantBookingResponse
+import ma.tany.core.model.collect.ScanBody
+import ma.tany.core.model.collect.ScanResponse
+import ma.tany.core.model.collect.TodayResponse
+import ma.tany.core.model.common.ApiErrorCode
+import ma.tany.core.model.common.AssetCondition
+import ma.tany.core.model.common.MoneyAmount
+import ma.tany.core.model.common.QrPurpose
+import ma.tany.core.model.common.TanyJson
+import ma.tany.core.network.ApiEndpoint
+import ma.tany.core.network.ApiEnvironment
+import ma.tany.core.network.ApiError
+import ma.tany.core.network.ApiResult
+import ma.tany.core.network.CollectOperationError
+import ma.tany.core.network.CollectOperationsRepository
+import ma.tany.core.network.CollectRepository
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.io.File
+import java.io.IOException
+
+class PickupFlowTest {
+    @get:Rule
+    val main = MainDispatcherRule()
+
+    @get:Rule
+    val tmp = TemporaryFolder()
+
+    /** Real backend capture (core:model fixtures). */
+    private val booking: MerchantBookingDetail = TanyJson.decodeFromString<MerchantBookingResponse>(
+        File("../core/model/src/test/resources/fixtures/real/booking_detail.json").readText(),
+    ).booking
+
+    private val endpoint = ApiEndpoint.of(ApiEnvironment.STAGING, "https://staging.tany.ma")
+
+    private class FakeCollect(var detail: ApiResult<MerchantBookingDetail>) : CollectRepository {
+        val reads = mutableListOf<String>()
+
+        override suspend fun me(): ApiResult<CollectMe> = ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun today(pointId: String): ApiResult<TodayResponse> = ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun activity(pointId: String, query: String?): ApiResult<ActivityResponse> = ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun booking(bookingId: String, pointId: String): ApiResult<MerchantBookingDetail> {
+            reads += pointId
+            return detail
+        }
+
+        override suspend fun assets(pointId: String): ApiResult<AssetsResponse> = ApiResult.Failure(ApiError.Unauthorized)
+    }
+
+    private class FakeOps : CollectOperationsRepository {
+        val calls = mutableListOf<String>()
+        var result: ApiResult<MerchantBookingDetail> = ApiResult.Failure(ApiError.Unauthorized)
+        var scanResult: ApiResult<ScanResponse> = ApiResult.Failure(ApiError.Unauthorized)
+        var lastScan: ScanBody? = null
+        var lastAsset: AssetScanBody? = null
+        var lastAmount: MoneyAmount? = null
+        var lastPhoto: Triple<String, AssetCondition, ByteArray>? = null
+
+        override suspend fun scan(body: ScanBody): ApiResult<ScanResponse> {
+            calls += "scan"; lastScan = body
+            return scanResult
+        }
+
+        override suspend fun verifyAsset(bookingId: String, body: AssetScanBody): ApiResult<MerchantBookingDetail> {
+            calls += "asset"; lastAsset = body
+            return result
+        }
+
+        override suspend fun uploadPhoto(bookingId: String, collectPointId: String, purpose: QrPurpose, condition: AssetCondition, jpeg: ByteArray): ApiResult<MerchantBookingDetail> {
+            calls += "photo"; lastPhoto = Triple(collectPointId, condition, jpeg)
+            return result
+        }
+
+        override suspend fun confirmPayment(bookingId: String, collectPointId: String, amount: MoneyAmount): ApiResult<MerchantBookingDetail> {
+            calls += "payment"; lastAmount = amount
+            return result
+        }
+
+        override suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail> {
+            calls += "handover"
+            return result
+        }
+    }
+
+    private inner class FakePhotos(var failEncode: Boolean = false) : OperationPhotos {
+        val discarded = mutableListOf<File>()
+
+        override fun newCaptureFile(): File = tmp.newFile()
+
+        override fun uriFor(file: File): Uri = error("not used in JVM tests")
+
+        override suspend fun encode(file: File): ByteArray {
+            if (failEncode) throw IOException("not an image")
+            return file.readBytes()
+        }
+
+        override fun discard(file: File) {
+            discarded += file
+            file.delete()
+        }
+    }
+
+    private fun detailVm(collect: FakeCollect, ops: FakeOps, photos: FakePhotos = FakePhotos()) =
+        BookingDetailViewModel(collect, ops, photos, endpoint, SavedStateHandle(mapOf("bookingId" to booking.id))).apply { load("cp1") }
+
+    @Test
+    fun photoIsUploadedWithTheDeclaredConditionThenDeleted() = runTest {
+        val ops = FakeOps().apply { result = ApiResult.Success(booking) }
+        val photos = FakePhotos()
+        val vm = detailVm(FakeCollect(ApiResult.Success(booking)), ops, photos)
+        vm.onPhotoCondition(AssetCondition.ISSUE_REPORTED)
+        val file = vm.preparePhoto().apply { writeBytes(byteArrayOf(7)) }
+        vm.onPhotoCaptured("cp1", success = true)
+        assertEquals(listOf("photo"), ops.calls)
+        assertEquals("cp1", ops.lastPhoto!!.first)
+        assertEquals(AssetCondition.ISSUE_REPORTED, ops.lastPhoto!!.second)
+        assertTrue(file in photos.discarded) // never kept on the device
+        assertNull(vm.pickup.value.busy)
+    }
+
+    @Test
+    fun cancelledOrUnreadablePhotoSendsNothing() = runTest {
+        val ops = FakeOps()
+        val photos = FakePhotos(failEncode = true)
+        val vm = detailVm(FakeCollect(ApiResult.Success(booking)), ops, photos)
+        vm.preparePhoto()
+        vm.onPhotoCaptured("cp1", success = false)
+        assertTrue(ops.calls.isEmpty())
+
+        vm.preparePhoto().writeBytes(byteArrayOf(1))
+        vm.onPhotoCaptured("cp1", success = true)
+        assertTrue(ops.calls.isEmpty())
+        assertEquals(CollectOperationError.Photo, vm.pickup.value.error)
+    }
+
+    @Test
+    fun paymentSendsTheServerAmountAndFailuresRereadWithoutRetry() = runTest {
+        val collect = FakeCollect(ApiResult.Success(booking))
+        val ops = FakeOps().apply { result = ApiResult.Failure(ApiError.Http(409, ApiErrorCode.INVALID_STATE, "invalid_state", "…")) }
+        val vm = detailVm(collect, ops)
+        var done = 0
+        vm.confirmPayment("cp1", MoneyAmount(34950)) { done++ }
+        assertEquals(listOf("payment"), ops.calls)
+        assertEquals(MoneyAmount(34950), ops.lastAmount)
+        assertEquals(1, done)
+        assertEquals(CollectOperationError.NotAllowedNow, vm.pickup.value.error)
+        assertEquals(2, collect.reads.size) // initial load + re-read after the refusal
+    }
+
+    @Test
+    fun handoverAppliesTheServerBooking() = runTest {
+        val handedOver = booking.copy(phase = ma.tany.core.model.collect.MerchantPhase.PICKUP_AWAITING_CUSTOMER)
+        val ops = FakeOps().apply { result = ApiResult.Success(handedOver) }
+        val vm = detailVm(FakeCollect(ApiResult.Success(booking)), ops)
+        vm.handover("cp1") {}
+        assertEquals(handedOver, (vm.state.value as LoadState.Loaded).value)
+    }
+
+    @Test
+    fun scannerTabResolvesTheBookingAndLabelScanTargetsTheBooking() = runTest {
+        val ops = FakeOps().apply {
+            scanResult = ApiResult.Success(ScanResponse(QrPurpose.PICKUP, booking))
+            result = ApiResult.Success(booking)
+        }
+        val tab = OperationScanViewModel(ops, SavedStateHandle())
+        tab.submit("cp1", ScanInput.ShortCode("123456"))
+        assertEquals(booking.id, tab.done.first())
+        assertEquals(ScanBody(collectPointId = "cp1", shortCode = "123456"), ops.lastScan)
+
+        val label = OperationScanViewModel(
+            ops,
+            SavedStateHandle(mapOf("bookingId" to "bk1", "target" to ScanTarget.ASSET_LABEL.name, "purpose" to "PICKUP")),
+        )
+        label.submit("cp1", ScanInput.Qr(" PRC-001 "))
+        assertEquals(AssetScanBody("cp1", QrPurpose.PICKUP, "PRC-001"), ops.lastAsset)
+    }
+
+    @Test
+    fun qrRefusalIsTypedAndShown() = runTest {
+        val ops = FakeOps().apply {
+            scanResult = ApiResult.Failure(ApiError.Http(409, ApiErrorCode.QR_EXPIRED, "qr_expired", "…"))
+        }
+        val vm = OperationScanViewModel(ops, SavedStateHandle(mapOf("bookingId" to "bk1", "target" to "BOOKING_QR", "purpose" to "PICKUP")))
+        vm.submit("cp1", ScanInput.Qr("tok.sig"))
+        assertEquals(CollectOperationError.Qr(ApiErrorCode.QR_EXPIRED), vm.state.value.error)
+        assertEquals("bk1", ops.lastScan!!.bookingId)
+        assertEquals(QrPurpose.PICKUP, ops.lastScan!!.purpose)
+    }
+
+    @Test
+    fun photoSizingRules() {
+        assertEquals(2, OperationImageMath.inSampleSize(4096, 3072, 2048))
+        assertEquals(2048 to 1536, OperationImageMath.fit(4000, 3000, 2048))
+        assertEquals(90, OperationImageMath.rotationDegrees(6))
+    }
+}

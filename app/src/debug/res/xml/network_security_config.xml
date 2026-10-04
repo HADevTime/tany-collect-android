@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- DEV only: local backend over http (emulator 10.0.2.2, LAN IP). Never shipped in staging/release. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

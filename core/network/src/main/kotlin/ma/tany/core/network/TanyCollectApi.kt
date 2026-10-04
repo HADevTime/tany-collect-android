@@ -15,6 +15,7 @@ import ma.tany.core.model.collect.MerchantBookingResponse
 import ma.tany.core.model.collect.MerchantEventBody
 import ma.tany.core.model.collect.NudgeResponse
 import ma.tany.core.model.collect.PaymentBody
+import ma.tany.core.model.collect.PhotoUploadResponse
 import ma.tany.core.model.collect.ReturnBody
 import ma.tany.core.model.collect.RevenueOverview
 import ma.tany.core.model.collect.ScanBody
@@ -31,10 +32,13 @@ import ma.tany.core.model.common.OtpRequestBody
 import ma.tany.core.model.common.OtpRequestResponse
 import ma.tany.core.model.common.OtpVerifyBody
 import ma.tany.core.model.common.UnreadCount
+import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.HTTP
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -105,6 +109,11 @@ interface TanyCollectApi {
 
     @POST("collect/bookings/{id}/asset")
     suspend fun verifyAsset(@Path("id") id: String, @Body body: AssetScanBody): MerchantBookingResponse
+
+    /** Multipart: `photo` (JPEG), `purpose` PICKUP|RETURN, `condition` good|issue_reported, `collectPointId` (1–3 per gesture). */
+    @Multipart
+    @POST("collect/bookings/{id}/photos")
+    suspend fun uploadPhoto(@Path("id") id: String, @Part parts: List<MultipartBody.Part>): PhotoUploadResponse
 
     @POST("collect/bookings/{id}/payment")
     suspend fun confirmPayment(@Path("id") id: String, @Body body: PaymentBody): MerchantBookingResponse

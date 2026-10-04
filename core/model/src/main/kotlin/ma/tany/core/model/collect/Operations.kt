@@ -310,3 +310,10 @@ data class HistoryEntry(
 
 @Serializable
 data class MerchantBookingResponse(val booking: MerchantBookingDetail)
+
+/** `POST bookings/{id}/photos` — the stored photo (signed relative url) and the updated booking. */
+@Serializable
+data class UploadedPhoto(val id: String, val url: String? = null)
+
+@Serializable
+data class PhotoUploadResponse(val photo: UploadedPhoto? = null, val booking: MerchantBookingDetail)

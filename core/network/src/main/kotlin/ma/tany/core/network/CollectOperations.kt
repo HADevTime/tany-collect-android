@@ -1,0 +1,126 @@
+package ma.tany.core.network
+
+import ma.tany.core.model.collect.AssetScanBody
+import ma.tany.core.model.collect.HandoverBody
+import ma.tany.core.model.collect.MerchantBookingDetail
+import ma.tany.core.model.collect.PaymentBody
+import ma.tany.core.model.collect.ScanBody
+import ma.tany.core.model.collect.ScanResponse
+import ma.tany.core.model.common.ApiErrorCode
+import ma.tany.core.model.common.AssetCondition
+import ma.tany.core.model.common.MoneyAmount
+import ma.tany.core.model.common.QrPurpose
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
+
+/**
+ * Merchant operation gestures (pickup slice). Every call carries the ACTIVE `collectPointId` (the server re-checks
+ * the scope); none is idempotent ⇒ never retried automatically — after any failure the screen re-reads the booking.
+ * The order of the steps and every rule (QR validity, asset match, amounts, window, identity) are the server's.
+ */
+interface CollectOperationsRepository {
+    /** `POST /collect/scan` — dynamic QR or 6-digit code; [bookingId] / [purpose] when scanning for a known booking. */
+    suspend fun scan(body: ScanBody): ApiResult<ScanResponse>
+
+    suspend fun verifyAsset(bookingId: String, body: AssetScanBody): ApiResult<MerchantBookingDetail>
+
+    suspend fun uploadPhoto(
+        bookingId: String,
+        collectPointId: String,
+        purpose: QrPurpose,
+        condition: AssetCondition,
+        jpeg: ByteArray,
+    ): ApiResult<MerchantBookingDetail>
+
+    /** [amount] = the server's amount due, sent back EXACTLY (`amountReceived`). */
+    suspend fun confirmPayment(bookingId: String, collectPointId: String, amount: MoneyAmount): ApiResult<MerchantBookingDetail>
+
+    /** Merchant half of the pickup: the customer alone then moves the booking to COLLECTED. */
+    suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail>
+}
+
+class DefaultCollectOperationsRepository(private val api: TanyCollectApi) : CollectOperationsRepository {
+    override suspend fun scan(body: ScanBody): ApiResult<ScanResponse> = apiCall { api.scan(body) }
+
+    override suspend fun verifyAsset(bookingId: String, body: AssetScanBody): ApiResult<MerchantBookingDetail> =
+        apiCall { api.verifyAsset(bookingId, body).booking }
+
+    override suspend fun uploadPhoto(
+        bookingId: String,
+        collectPointId: String,
+        purpose: QrPurpose,
+        condition: AssetCondition,
+        jpeg: ByteArray,
+    ): ApiResult<MerchantBookingDetail> =
+        apiCall { api.uploadPhoto(bookingId, OperationPhotoMultipart.parts(collectPointId, purpose, condition, jpeg)).booking }
+
+    override suspend fun confirmPayment(bookingId: String, collectPointId: String, amount: MoneyAmount): ApiResult<MerchantBookingDetail> =
+        apiCall { api.confirmPayment(bookingId, PaymentBody(collectPointId, amount)).booking }
+
+    override suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail> =
+        apiCall { api.handover(bookingId, HandoverBody(collectPointId, condition)).booking }
+}
+
+/** Multipart layout of `POST bookings/{id}/photos` (contract field names). */
+object OperationPhotoMultipart {
+    private val JPEG = "image/jpeg".toMediaType()
+
+    fun parts(collectPointId: String, purpose: QrPurpose, condition: AssetCondition, jpeg: ByteArray): List<MultipartBody.Part> = listOf(
+        MultipartBody.Part.createFormData("collectPointId", collectPointId),
+        MultipartBody.Part.createFormData("purpose", purpose.wire),
+        MultipartBody.Part.createFormData("condition", condition.wire),
+        MultipartBody.Part.createFormData("photo", "photo.jpg", jpeg.toRequestBody(JPEG)),
+    )
+}
+
+/** Typed reading of operation errors (codes + structured details; the server's French message is never shown). */
+sealed interface CollectOperationError {
+    /** 409 qr_* — the customer must show a fresh code (expired, used, unknown, wrong booking / purpose, stale…). */
+    data class Qr(val code: ApiErrorCode) : CollectOperationError
+
+    /** 409 asset_mismatch + expected / scanned codes. */
+    data class AssetMismatch(val expected: String?, val scanned: String?) : CollectOperationError
+
+    /** 403 wrong_collect_point — booking of another TANY Collect. */
+    data object WrongPoint : CollectOperationError
+
+    /** 409 pickup_too_early (+ window). */
+    data class TooEarly(val windowStart: String?, val windowEnd: String?) : CollectOperationError
+
+    /** 403 identity_required — the customer's identity is not verified (server gate). */
+    data object IdentityRequired : CollectOperationError
+
+    /** 422 photo_error — unusable image, too many photos, wrong order. */
+    data object Photo : CollectOperationError
+
+    /** 409 invalid_state — step not allowed now (order, already done, amount mismatch…): re-read the booking. */
+    data object NotAllowedNow : CollectOperationError
+
+    /** 429 qr_rate_limited — too many fallback-code attempts. */
+    data object RateLimited : CollectOperationError
+
+    data class Other(val error: ApiError) : CollectOperationError
+
+    companion object {
+        private val QR_CODES = setOf(
+            ApiErrorCode.QR_ERROR, ApiErrorCode.QR_EXPIRED, ApiErrorCode.QR_ALREADY_USED, ApiErrorCode.QR_NOT_FOUND,
+            ApiErrorCode.QR_MALFORMED, ApiErrorCode.QR_WRONG_PURPOSE, ApiErrorCode.QR_WRONG_BOOKING, ApiErrorCode.QR_STALE,
+        )
+
+        fun from(error: ApiError): CollectOperationError {
+            if (error !is ApiError.Http) return Other(error)
+            return when (error.code) {
+                in QR_CODES -> Qr(error.code)
+                ApiErrorCode.ASSET_MISMATCH -> AssetMismatch(error.detailString("expectedAssetCode"), error.detailString("scannedAssetCode"))
+                ApiErrorCode.WRONG_COLLECT_POINT -> WrongPoint
+                ApiErrorCode.PICKUP_TOO_EARLY -> TooEarly(error.detailString("pickupWindowStart"), error.detailString("pickupWindowEnd"))
+                ApiErrorCode.IDENTITY_REQUIRED -> IdentityRequired
+                ApiErrorCode.PHOTO_ERROR -> Photo
+                ApiErrorCode.INVALID_STATE -> NotAllowedNow
+                ApiErrorCode.QR_RATE_LIMITED -> RateLimited
+                else -> Other(error)
+            }
+        }
+    }
+}

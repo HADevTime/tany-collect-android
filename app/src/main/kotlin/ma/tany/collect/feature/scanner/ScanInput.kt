@@ -23,7 +23,7 @@ sealed interface ScanInput {
 object ScanInputs {
     const val SHORT_CODE_LENGTH = 6
     private const val MAX_QR_LENGTH = 512
-    private const val MAX_ASSET_CODE_LENGTH = 64
+    const val MAX_ASSET_CODE_LENGTH = 64
 
     /** Camera result → booking QR input (trimmed; over-long values are rejected before reaching the API). */
     fun fromCamera(raw: String): ScanInput.Qr? = raw.trim().takeIf { it.isNotEmpty() && it.length <= MAX_QR_LENGTH }?.let(ScanInput::Qr)

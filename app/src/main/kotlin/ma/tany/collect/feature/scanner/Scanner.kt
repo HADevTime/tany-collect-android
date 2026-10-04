@@ -33,6 +33,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -55,12 +59,21 @@ import ma.tany.core.designsystem.theme.TanyTheme
 enum class CameraPermission { GRANTED, NOT_REQUESTED, DENIED, PERMANENTLY_DENIED }
 
 /**
- * Scanner foundation: camera permission requested IN CONTEXT (rationale first, settings when permanently denied),
- * live QR preview, and the 6-digit fallback. Inputs are captured as [ScanInput]; sending them to
- * `POST /collect/scan` belongs to the pickup / return slices (not implemented here).
+ * Scanner: camera permission requested IN CONTEXT (rationale first, settings when permanently denied), live QR
+ * preview, and a manual fallback — the customer's 6-digit code ([ScanTarget.BOOKING_QR]) or the printed label code
+ * ([ScanTarget.ASSET_LABEL]). Inputs are OPAQUE ([ScanInput]); the caller sends them to the server, which decides.
+ * [busy] / [message] reflect the caller's request (one at a time).
  */
 @Composable
-fun ScannerScreen(onInput: (ScanInput) -> Unit = {}) {
+fun ScannerScreen(
+    onInput: (ScanInput) -> Unit = {},
+    title: String? = null,
+    target: ScanTarget = ScanTarget.BOOKING_QR,
+    onBack: (() -> Unit)? = null,
+    busy: Boolean = false,
+    message: String? = null,
+    hint: String? = null,
+) {
     val context = LocalContext.current
     var permission by remember { mutableStateOf(context.cameraPermission(requestedBefore = false)) }
     var requested by rememberSaveable { mutableStateOf(false) }
@@ -74,12 +87,14 @@ fun ScannerScreen(onInput: (ScanInput) -> Unit = {}) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { permission = context.cameraPermission(requestedBefore = requested) }
 
     val accept: (ScanInput) -> Unit = { input ->
-        captured = input
-        onInput(input)
+        if (!busy) {
+            captured = input
+            onInput(input)
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
-        TanyTopBar(title = stringResource(R.string.scan_title), chrome = true)
+        TanyTopBar(title = title ?: stringResource(R.string.scan_title), onBack = onBack, chrome = true)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -87,6 +102,7 @@ fun ScannerScreen(onInput: (ScanInput) -> Unit = {}) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            hint?.let { Text(it, style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted) }
             when (permission) {
                 CameraPermission.GRANTED -> CameraQrPreview(
                     onCode = { raw -> ScanInputs.fromCamera(raw)?.let(accept) },
@@ -113,21 +129,41 @@ fun ScannerScreen(onInput: (ScanInput) -> Unit = {}) {
                 }
             }
 
+            val labelMode = target == ScanTarget.ASSET_LABEL
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 OutlinedTextField(
                     value = code,
-                    onValueChange = { code = it.filter(Char::isDigit).take(ScanInputs.SHORT_CODE_LENGTH) },
-                    label = { Text(stringResource(R.string.scan_fallback_label)) },
+                    onValueChange = {
+                        code = if (labelMode) it.take(ScanInputs.MAX_ASSET_CODE_LENGTH) else it.filter(Char::isDigit).take(ScanInputs.SHORT_CODE_LENGTH)
+                    },
+                    label = { Text(stringResource(if (labelMode) R.string.scan_label_fallback else R.string.scan_fallback_label)) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    keyboardOptions = if (labelMode) {
+                        KeyboardOptions(capitalization = KeyboardCapitalization.Characters, keyboardType = KeyboardType.Ascii)
+                    } else {
+                        KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
             TanyButton(
                 stringResource(R.string.scan_fallback_submit),
-                { ScanInputs.shortCodeOrNull(code)?.let(accept) },
-                enabled = code.length == ScanInputs.SHORT_CODE_LENGTH,
+                {
+                    // Label codes are typed as printed and sent like a scanned label (opaque, trimmed).
+                    val input = if (labelMode) ScanInputs.fromCamera(code) else ScanInputs.shortCodeOrNull(code)
+                    input?.let(accept)
+                },
+                enabled = !busy && if (labelMode) code.isNotBlank() else code.length == ScanInputs.SHORT_CODE_LENGTH,
+                loading = busy,
             )
+            message?.let {
+                Text(
+                    it,
+                    style = TanyTheme.typography.label,
+                    color = TanyTheme.colors.danger.accent,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
 
             captured?.let { input ->
                 val shown = when (input) {

@@ -11,12 +11,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import ma.tany.collect.core.AppEnvironment
 import ma.tany.collect.core.locale.AppLanguage
+import ma.tany.collect.core.media.AndroidOperationPhotos
 import ma.tany.collect.core.media.OperationPhotoFiles
+import ma.tany.collect.core.media.OperationPhotos
 import ma.tany.collect.core.preferences.CollectPreferences
 import ma.tany.collect.core.storage.KeystoreSessionStore
 import ma.tany.core.network.ApiEndpoint
 import ma.tany.core.network.CollectAuthRepository
+import ma.tany.core.network.CollectOperationsRepository
 import ma.tany.core.network.CollectRepository
+import ma.tany.core.network.DefaultCollectOperationsRepository
 import ma.tany.core.network.DefaultCollectAuthRepository
 import ma.tany.core.network.DefaultCollectRepository
 import ma.tany.core.network.BackendPushTokenRegistrar
@@ -84,4 +88,12 @@ object AppModule {
     @Provides
     @Singleton
     fun photoFiles(@ApplicationContext context: Context): OperationPhotoFiles = OperationPhotoFiles(context)
+
+    @Provides
+    @Singleton
+    fun operationPhotos(files: OperationPhotoFiles): OperationPhotos = AndroidOperationPhotos(files)
+
+    @Provides
+    @Singleton
+    fun operationsRepository(api: TanyCollectApi): CollectOperationsRepository = DefaultCollectOperationsRepository(api)
 }

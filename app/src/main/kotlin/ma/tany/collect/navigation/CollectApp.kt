@@ -17,7 +17,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.util.Consumer
@@ -182,7 +182,7 @@ private fun NavHostController.navigateTab(route: Any) = navigate(route) {
 
 @Composable
 private fun NewIntentDeepLinks(navController: NavHostController) {
-    val activity = LocalContext.current as? ComponentActivity ?: return
+    val activity = LocalActivity.current as? ComponentActivity ?: return
     DisposableEffect(activity, navController) {
         val listener = Consumer<Intent> { intent -> navController.handleDeepLink(intent) }
         activity.addOnNewIntentListener(listener)

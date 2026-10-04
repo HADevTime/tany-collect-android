@@ -115,4 +115,50 @@ class PickupOperationsTest {
         // missingAccessories is always sent (contract), even empty.
         assertEquals("""{"collectPointId":"cp1","condition":"good","missingAccessories":[]}""", server.takeRequest().body.readUtf8())
     }
+
+    @Test
+    fun depositRefundSendsTheShownAmountAndTypesRefusals() = runTest(UnconfinedTestDispatcher()) {
+        val repo = repo(TestScope(testScheduler))
+        server.enqueue(json(409, fixture("err_deposit_amount_changed")))
+        val changed = repo.depositRefund("bk1", "cp1", MoneyAmount.ofMajor(1))
+        val request = server.takeRequest()
+        assertEquals("/api/mobile/v1/collect/bookings/bk1/deposit-refund", request.path)
+        assertEquals("""{"collectPointId":"cp1","expectedAmount":1}""", request.body.readUtf8())
+        assertEquals(
+            CollectOperationError.DepositAmountChanged(MoneyAmount.ofMajor(210)),
+            CollectOperationError.from((changed as ApiResult.Failure).error),
+        )
+
+        server.enqueue(json(409, fixture("err_deposit_refund_qr_required")))
+        val qr = repo.depositRefund("bk1", "cp1", MoneyAmount.ofMajor(210))
+        assertEquals(CollectOperationError.DepositRefundQrRequired, CollectOperationError.from((qr as ApiResult.Failure).error))
+
+        server.enqueue(json(200, fixture("deposit_refund_handed_back")))
+        assertTrue(repo.depositRefund("bk1", "cp1", MoneyAmount.ofMajor(210)) is ApiResult.Success)
+    }
+
+    @Test
+    fun settlementConfirmSendsTheAgentDeclarationExactly() = runTest(UnconfinedTestDispatcher()) {
+        val stack = TestStack(server, TestScope(testScheduler))
+        stack.session.signIn(StoredSession("tok_m", "usr_m"))
+        val repo = DefaultCollectBusinessRepository(stack.api)
+        val awaiting = ma.tany.core.model.common.TanyJson.decodeFromString<ma.tany.core.model.collect.SettlementOverview>(fixture("settlement_awaiting"))
+        val collection = awaiting.activeCollection!!
+
+        server.enqueue(json(409, fixture("err_settlement_stale")))
+        val stale = repo.confirmHandoff("cp-maarif", collection)
+        val request = server.takeRequest()
+        assertEquals("/api/mobile/v1/collect/points/cp-maarif/settlement/collections/${collection.id}/confirm", request.path)
+        assertEquals("""{"amountCents":18620,"agentConfirmationId":"${collection.agentConfirmationId}"}""", request.body.readUtf8())
+        assertEquals(SettlementActionError.Stale, SettlementActionError.from((stale as ApiResult.Failure).error))
+
+        server.enqueue(json(200, fixture("settlement_confirmed")))
+        assertTrue(repo.confirmHandoff("cp-maarif", collection) is ApiResult.Success)
+
+        server.enqueue(json(200, fixture("settlement_qr")))
+        val qr = repo.settlementQr("cp-maarif", collection.id)
+        server.takeRequest()
+        assertEquals("{}", server.takeRequest().body.readUtf8())
+        assertTrue((qr as ApiResult.Success).value.qrPayload.startsWith("TCR1."))
+    }
 }

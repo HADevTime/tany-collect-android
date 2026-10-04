@@ -20,7 +20,11 @@ import ma.tany.core.model.collect.ReturnBody
 import ma.tany.core.model.collect.RevenueOverview
 import ma.tany.core.model.collect.ScanBody
 import ma.tany.core.model.collect.ScanResponse
+import ma.tany.core.model.collect.EmptyBody
+import ma.tany.core.model.collect.SettlementConfirmBody
+import ma.tany.core.model.collect.SettlementDisputeBody
 import ma.tany.core.model.collect.SettlementOverview
+import ma.tany.core.model.collect.SettlementQr
 import ma.tany.core.model.common.AppConfig
 import ma.tany.core.model.common.DeviceRegistrationBody
 import ma.tany.core.model.common.DeviceTokenBody
@@ -47,8 +51,6 @@ import retrofit2.http.Query
  * Every `bookings/{id}` route carries `collectPointId`; the server re-checks the merchant's scope
  * (`wrong_collect_point` / `forbidden`). No mutation is ever retried automatically.
  * Sessions are `COLLECT_APP` sessions (MERCHANT or ADMIN only): never valid for TANY Client nor for the backoffice.
- * NOT exposed yet: multipart `bookings/{id}/photos` (arrives with the pickup slice), settlement statement/collection details
- * and QR/confirm/dispute (settlement slice, gap A-4).
  */
 interface TanyCollectApi {
     @GET("config")
@@ -86,6 +88,18 @@ interface TanyCollectApi {
 
     @GET("collect/points/{pointId}/settlement")
     suspend fun settlement(@Path("pointId") pointId: String): SettlementOverview
+
+    /** Settlement QR (`TCR1.…`, ~90 s, single use) shown to the TANY agent — rendered as-is, never parsed. */
+    @POST("collect/points/{pointId}/settlement/collections/{id}/qr")
+    suspend fun settlementQr(@Path("pointId") pointId: String, @Path("id") collectionId: String, @Body body: EmptyBody = EmptyBody()): SettlementQr
+
+    /** « J'ai remis X » — exactly the agent's declared amount + confirmation id (`confirmation_stale` otherwise). */
+    @POST("collect/points/{pointId}/settlement/collections/{id}/confirm")
+    suspend fun settlementConfirm(@Path("pointId") pointId: String, @Path("id") collectionId: String, @Body body: SettlementConfirmBody): SettlementOverview
+
+    /** « Ce n'est pas le montant remis » — TANY settles the discrepancy. */
+    @POST("collect/points/{pointId}/settlement/collections/{id}/dispute")
+    suspend fun settlementDispute(@Path("pointId") pointId: String, @Path("id") collectionId: String, @Body body: SettlementDisputeBody): SettlementOverview
 
     @GET("collect/points/{pointId}/assets")
     suspend fun assets(

@@ -25,6 +25,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ma.tany.collect.R
+import ma.tany.core.designsystem.R as DsR
+import ma.tany.core.designsystem.component.TanyBadge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
 import ma.tany.collect.core.ui.LoadState
 import ma.tany.collect.core.ui.messageRes
 import ma.tany.collect.core.ui.toLoadState
@@ -55,11 +62,29 @@ class TodayViewModel @Inject constructor(
 
 /** Operations of the day for the ACTIVE point (server-ordered, server phases). */
 @Composable
-fun TodayScreen(pointId: String, pointName: String?, onOpenBooking: (String) -> Unit, viewModel: TodayViewModel = hiltViewModel()) {
+fun TodayScreen(
+    pointId: String,
+    pointName: String?,
+    unreadNotifications: Int,
+    onOpenNotifications: () -> Unit,
+    onOpenBooking: (String) -> Unit,
+    viewModel: TodayViewModel = hiltViewModel(),
+) {
     LaunchedEffect(pointId) { viewModel.load(pointId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        TanyTopBar(title = pointName ?: stringResource(R.string.today_title), chrome = true)
+        val notificationsLabel = if (unreadNotifications > 0) {
+            stringResource(R.string.notifications_unread_count, unreadNotifications)
+        } else {
+            stringResource(R.string.notifications_title)
+        }
+        TanyTopBar(title = pointName ?: stringResource(R.string.today_title), chrome = true) {
+            IconButton(onClick = onOpenNotifications, modifier = Modifier.semantics { contentDescription = notificationsLabel }) {
+                BadgedBox(badge = { if (unreadNotifications > 0) TanyBadge(if (unreadNotifications > 99) "99+" else unreadNotifications.toString()) }) {
+                    Icon(painterResource(DsR.drawable.ic_tany_inbox), contentDescription = null, tint = TanyTheme.colors.textPrimary)
+                }
+            }
+        }
         when (val s = state) {
             LoadState.Loading -> TanyLoadingState()
             is LoadState.Failed -> TanyErrorState(stringResource(s.error.messageRes()), onRetry = { viewModel.load(pointId) })

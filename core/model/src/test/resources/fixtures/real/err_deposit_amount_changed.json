@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "deposit_amount_changed",
+    "message": "Le montant de la caution à remettre a été mis à jour par TANY. Vérifiez le nouveau montant avant de remettre l'argent.",
+    "currentAmount": 210
+  }
+}

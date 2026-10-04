@@ -1,6 +1,7 @@
 package ma.tany.core.network
 
 import ma.tany.core.model.collect.AssetScanBody
+import ma.tany.core.model.collect.DepositRefundBody
 import ma.tany.core.model.collect.HandoverBody
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.PaymentBody
@@ -45,6 +46,13 @@ interface CollectOperationsRepository {
      * in TANY; the incident is only applied at that moment, and any deposit decision is TANY's.
      */
     suspend fun declareReturn(bookingId: String, body: ReturnBody): ApiResult<MerchantBookingDetail>
+
+    /**
+     * « J'ai remis X » — merchant half of the deposit refund; the customer alone confirms the amount received.
+     * [expectedAmount] = the server's amount shown on screen, sent back EXACTLY: if TANY changed the decision meanwhile the
+     * server refuses (`deposit_amount_changed` + `currentAmount`) and nothing is recorded.
+     */
+    suspend fun depositRefund(bookingId: String, collectPointId: String, expectedAmount: MoneyAmount): ApiResult<MerchantBookingDetail>
 }
 
 class DefaultCollectOperationsRepository(private val api: TanyCollectApi) : CollectOperationsRepository {
@@ -70,6 +78,9 @@ class DefaultCollectOperationsRepository(private val api: TanyCollectApi) : Coll
 
     override suspend fun declareReturn(bookingId: String, body: ReturnBody): ApiResult<MerchantBookingDetail> =
         apiCall { api.declareReturn(bookingId, body).booking }
+
+    override suspend fun depositRefund(bookingId: String, collectPointId: String, expectedAmount: MoneyAmount): ApiResult<MerchantBookingDetail> =
+        apiCall { api.depositRefund(bookingId, DepositRefundBody(collectPointId, expectedAmount)).booking }
 }
 
 /** Multipart layout of `POST bookings/{id}/photos` (contract field names). */
@@ -110,6 +121,12 @@ sealed interface CollectOperationError {
     /** 429 qr_rate_limited — too many fallback-code attempts. */
     data object RateLimited : CollectOperationError
 
+    /** 409 deposit_amount_changed — TANY changed the amount to hand back; [currentAmount] = the new server amount. */
+    data class DepositAmountChanged(val currentAmount: MoneyAmount?) : CollectOperationError
+
+    /** 409 deposit_refund_qr_required — scan the customer's deposit QR first (deferred refund, ≤ 15 min). */
+    data object DepositRefundQrRequired : CollectOperationError
+
     data class Other(val error: ApiError) : CollectOperationError
 
     companion object {
@@ -129,6 +146,9 @@ sealed interface CollectOperationError {
                 ApiErrorCode.PHOTO_ERROR -> Photo
                 ApiErrorCode.INVALID_STATE -> NotAllowedNow
                 ApiErrorCode.QR_RATE_LIMITED -> RateLimited
+                ApiErrorCode.DEPOSIT_AMOUNT_CHANGED ->
+                    DepositAmountChanged(error.detailString("currentAmount")?.let { runCatching { MoneyAmount.parse(it) }.getOrNull() })
+                ApiErrorCode.DEPOSIT_REFUND_QR_REQUIRED -> DepositRefundQrRequired
                 else -> Other(error)
             }
         }

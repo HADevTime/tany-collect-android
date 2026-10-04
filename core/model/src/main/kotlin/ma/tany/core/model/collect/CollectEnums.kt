@@ -271,6 +271,15 @@ enum class RevenueMetric(override val wire: String) : WireEnum {
     object Serializer : WireEnumSerializer<RevenueMetric>("RevenueMetric", entries, UNKNOWN)
 }
 
+/** `revenue.actions[].kind`. */
+@Serializable(with = RevenueActionKind.Serializer::class)
+enum class RevenueActionKind(override val wire: String) : WireEnum {
+    HAND_BACK_DEPOSIT("HAND_BACK_DEPOSIT"),
+    UNKNOWN("");
+
+    object Serializer : WireEnumSerializer<RevenueActionKind>("RevenueActionKind", entries, UNKNOWN)
+}
+
 /** `settlement.summary.status`. */
 @Serializable(with = SettlementStatus.Serializer::class)
 enum class SettlementStatus(override val wire: String) : WireEnum {
@@ -284,6 +293,17 @@ enum class SettlementStatus(override val wire: String) : WireEnum {
     UNKNOWN("");
 
     object Serializer : WireEnumSerializer<SettlementStatus>("SettlementStatus", entries, UNKNOWN)
+}
+
+/** Settlement statement status. */
+@Serializable(with = StatementStatus.Serializer::class)
+enum class StatementStatus(override val wire: String) : WireEnum {
+    DUE("DUE"),
+    PARTIALLY_COLLECTED("PARTIALLY_COLLECTED"),
+    COLLECTED("COLLECTED"),
+    UNKNOWN("");
+
+    object Serializer : WireEnumSerializer<StatementStatus>("StatementStatus", entries, UNKNOWN)
 }
 
 /** Settlement collection status. */

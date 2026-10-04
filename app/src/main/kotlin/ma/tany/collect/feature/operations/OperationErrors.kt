@@ -49,6 +49,15 @@ fun CollectOperationError.text(): String = when (this) {
     CollectOperationError.Photo -> stringResource(R.string.op_photo_error)
     CollectOperationError.NotAllowedNow -> stringResource(R.string.op_not_allowed_now)
     CollectOperationError.RateLimited -> stringResource(R.string.op_rate_limited)
+    is CollectOperationError.DepositAmountChanged -> {
+        val amount = currentAmount
+        if (amount != null) {
+            stringResource(R.string.op_deposit_amount_changed, LocalTanyFormatters.current.money(amount))
+        } else {
+            stringResource(R.string.op_deposit_amount_changed_plain)
+        }
+    }
+    CollectOperationError.DepositRefundQrRequired -> stringResource(R.string.op_deposit_qr_required)
     is CollectOperationError.Other -> if (error is ApiError.Network) {
         stringResource(R.string.op_unknown_outcome)
     } else {

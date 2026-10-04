@@ -74,6 +74,9 @@ class PickupFlowTest {
         }
 
         override suspend fun assets(pointId: String): ApiResult<AssetsResponse> = ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun asset(pointId: String, assetId: String): ApiResult<ma.tany.core.model.collect.AssetDetail> =
+            ApiResult.Failure(ApiError.Unauthorized)
     }
 
     private class FakeOps : CollectOperationsRepository {
@@ -86,6 +89,7 @@ class PickupFlowTest {
         var lastPhoto: Triple<String, AssetCondition, ByteArray>? = null
         var lastPhotoPurpose: QrPurpose? = null
         var lastReturn: ReturnBody? = null
+        var lastRefund: MoneyAmount? = null
 
         override suspend fun scan(body: ScanBody): ApiResult<ScanResponse> {
             calls += "scan"; lastScan = body
@@ -114,6 +118,11 @@ class PickupFlowTest {
 
         override suspend fun declareReturn(bookingId: String, body: ReturnBody): ApiResult<MerchantBookingDetail> {
             calls += "return"; lastReturn = body
+            return result
+        }
+
+        override suspend fun depositRefund(bookingId: String, collectPointId: String, expectedAmount: MoneyAmount): ApiResult<MerchantBookingDetail> {
+            calls += "deposit"; lastRefund = expectedAmount
             return result
         }
     }
@@ -268,5 +277,27 @@ class PickupFlowTest {
             ReturnBody(collectPointId = "cp1", condition = AssetCondition.GOOD, missingAccessories = emptyList(), incident = null),
             ops.lastReturn,
         )
+    }
+
+    @Test
+    fun depositHandBackSendsTheShownAmountAndAChangedAmountIsRereadNeverResent() = runTest {
+        val collect = FakeCollect(ApiResult.Success(booking))
+        val ops = FakeOps().apply {
+            result = ApiResult.Failure(
+                ApiError.Http(
+                    409, ApiErrorCode.DEPOSIT_AMOUNT_CHANGED, "deposit_amount_changed", "…",
+                    kotlinx.serialization.json.buildJsonObject { put("currentAmount", kotlinx.serialization.json.JsonPrimitive(210)) },
+                ),
+            )
+        }
+        val vm = detailVm(collect, ops)
+        var done = 0
+        vm.handBackDeposit("cp1", MoneyAmount.ofMajor(300)) { done++ }
+        assertEquals(listOf("deposit"), ops.calls) // sent once, never retried
+        assertEquals(MoneyAmount.ofMajor(300), ops.lastRefund)
+        assertEquals(1, done)
+        assertEquals(CollectOperationError.DepositAmountChanged(MoneyAmount.ofMajor(210)), vm.pickup.value.error)
+        assertEquals(ma.tany.collect.feature.booking.PickupGesture.DEPOSIT_REFUND, vm.pickup.value.failed)
+        assertEquals(2, collect.reads.size) // re-read: the merchant sees the new amount before any cash moves
     }
 }

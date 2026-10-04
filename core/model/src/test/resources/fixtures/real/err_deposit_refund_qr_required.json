@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "deposit_refund_qr_required",
+    "message": "Scannez d'abord le QR « Caution à récupérer » du client pour vérifier le remboursement.",
+    "reason": "DEPOSIT_REFUND_QR_REQUIRED"
+  }
+}

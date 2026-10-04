@@ -82,6 +82,10 @@ class AccountViewModel @Inject constructor(
 fun AccountScreen(
     me: CollectMe?,
     activePointId: String,
+    onOpenRevenue: () -> Unit,
+    onOpenSettlement: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    unreadNotifications: Int,
     onOpenShowcase: (() -> Unit)?,
     viewModel: AccountViewModel = hiltViewModel(),
 ) {
@@ -124,6 +128,17 @@ fun AccountScreen(
                         },
                     )
                 }
+            }
+
+            SectionTitle(stringResource(R.string.account_point_section))
+            TanyCard(contentPadding = 0.dp) {
+                TanyRow(title = stringResource(R.string.revenue_title), onClick = onOpenRevenue)
+                TanyRow(title = stringResource(R.string.settlement_title), onClick = onOpenSettlement)
+                TanyRow(
+                    title = stringResource(R.string.notifications_title),
+                    subtitle = if (unreadNotifications > 0) stringResource(R.string.notifications_unread_count, unreadNotifications) else null,
+                    onClick = onOpenNotifications,
+                )
             }
 
             SectionTitle(stringResource(R.string.account_appearance))

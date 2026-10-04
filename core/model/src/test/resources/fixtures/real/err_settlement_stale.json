@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": "confirmation_stale",
+    "message": "Le montant déclaré par l'agent a changé : vérifiez le nouveau montant avant de confirmer.",
+    "agentConfirmationId": "66ae2e97-db3d-4a72-8700-0955a2366b6e",
+    "agentConfirmedCents": 18620,
+    "expectedCents": 19120
+  }
+}

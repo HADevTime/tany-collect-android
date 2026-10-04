@@ -1,0 +1,431 @@
+{
+  "enabled": true,
+  "collectPointId": "cp-maarif",
+  "currency": "MAD",
+  "period": {
+    "key": "2026-10",
+    "label": "octobre 2026",
+    "rangeLabel": "1–31 octobre",
+    "start": "2026-09-30T23:00:00.000Z",
+    "end": "2026-10-31T23:00:00.000Z",
+    "isCurrent": true,
+    "previousKey": "2026-09",
+    "nextKey": null
+  },
+  "periods": [
+    {
+      "key": "2026-10",
+      "label": "octobre 2026",
+      "isCurrent": true
+    },
+    {
+      "key": "2026-09",
+      "label": "septembre 2026",
+      "isCurrent": false
+    },
+    {
+      "key": "2026-08",
+      "label": "août 2026",
+      "isCurrent": false
+    },
+    {
+      "key": "2026-07",
+      "label": "juillet 2026",
+      "isCurrent": false
+    },
+    {
+      "key": "2026-06",
+      "label": "juin 2026",
+      "isCurrent": false
+    },
+    {
+      "key": "2026-05",
+      "label": "mai 2026",
+      "isCurrent": false
+    },
+    {
+      "key": "2026-04",
+      "label": "avril 2026",
+      "isCurrent": false
+    },
+    {
+      "key": "2026-03",
+      "label": "mars 2026",
+      "isCurrent": false
+    },
+    {
+      "key": "2026-02",
+      "label": "février 2026",
+      "isCurrent": false
+    },
+    {
+      "key": "2026-01",
+      "label": "janvier 2026",
+      "isCurrent": false
+    },
+    {
+      "key": "2025-12",
+      "label": "décembre 2025",
+      "isCurrent": false
+    },
+    {
+      "key": "2025-11",
+      "label": "novembre 2025",
+      "isCurrent": false
+    }
+  ],
+  "earnings": {
+    "status": "ESTIMATED",
+    "title": "Gains estimés ce mois",
+    "amount": 764.4,
+    "commissionAmount": 264.4,
+    "bonusAmount": 500,
+    "adjustmentAmount": 0,
+    "previousAmount": 47.8,
+    "hasAgreement": true
+  },
+  "performance": {
+    "rentals": 10,
+    "rentalRevenue": 1322,
+    "previousRentals": 2,
+    "previousRentalRevenue": 239
+  },
+  "bonus": {
+    "unlockedCount": 3,
+    "unlockedAmount": 500,
+    "next": {
+      "metric": "RENTAL_COUNT",
+      "progressLabel": "Encore 5 locations pour débloquer 400 DH",
+      "threshold": 15,
+      "reward": 400,
+      "remaining": 5,
+      "achieved": false
+    },
+    "tiers": [
+      {
+        "metric": "RENTAL_COUNT",
+        "threshold": 5,
+        "reward": 100,
+        "achieved": true,
+        "achievedAt": "2026-10-04T13:24:28.077Z",
+        "current": 10,
+        "remaining": 0,
+        "progress": 1,
+        "label": "+100 DH à 5 locations",
+        "progressLabel": "Bonus débloqué"
+      },
+      {
+        "metric": "RENTAL_COUNT",
+        "threshold": 10,
+        "reward": 250,
+        "achieved": true,
+        "achievedAt": "2026-10-04T20:12:29.394Z",
+        "current": 10,
+        "remaining": 0,
+        "progress": 1,
+        "label": "+250 DH à 10 locations",
+        "progressLabel": "Bonus débloqué"
+      },
+      {
+        "metric": "RENTAL_COUNT",
+        "threshold": 15,
+        "reward": 400,
+        "achieved": false,
+        "achievedAt": null,
+        "current": 10,
+        "remaining": 5,
+        "progress": 0.6666666666666666,
+        "label": "+400 DH à 15 locations",
+        "progressLabel": "Encore 5 locations pour débloquer 400 DH"
+      },
+      {
+        "metric": "RENTAL_COUNT",
+        "threshold": 20,
+        "reward": 600,
+        "achieved": false,
+        "achievedAt": null,
+        "current": 10,
+        "remaining": 10,
+        "progress": 0.5,
+        "label": "+600 DH à 20 locations",
+        "progressLabel": "Encore 10 locations pour débloquer 600 DH"
+      },
+      {
+        "metric": "RENTAL_REVENUE",
+        "threshold": 1000,
+        "reward": 150,
+        "achieved": true,
+        "achievedAt": "2026-10-04T20:12:28.910Z",
+        "current": 1322,
+        "remaining": 0,
+        "progress": 1,
+        "label": "+150 DH à 1 000 DH de locations",
+        "progressLabel": "Bonus débloqué"
+      }
+    ]
+  },
+  "deposits": {
+    "count": 10,
+    "amount": 2650,
+    "toHandBack": {
+      "count": 2,
+      "amount": 540
+    },
+    "awaitingCustomer": {
+      "count": 1,
+      "amount": 400
+    },
+    "underReview": {
+      "count": 2,
+      "amount": 400
+    }
+  },
+  "actions": [
+    {
+      "kind": "HAND_BACK_DEPOSIT",
+      "bookingId": "4f5ee127-1aea-4f09-aab7-a11282a6fcc3",
+      "bookingReference": "TNY-3057",
+      "title": "Caution à rendre",
+      "subtitle": "Démarreur de voiture · TNY-3057 · Amina T.",
+      "productName": "Démarreur de voiture",
+      "customerShortName": "Amina T.",
+      "amount": 140,
+      "deepLink": "tanycollect://booking/4f5ee127-1aea-4f09-aab7-a11282a6fcc3"
+    },
+    {
+      "kind": "HAND_BACK_DEPOSIT",
+      "bookingId": "7ec83e5b-8f5f-4ff5-897b-77c4aa4ddece",
+      "bookingReference": "TNY-8763",
+      "title": "Caution à rendre",
+      "subtitle": "Station électrique portable · TNY-8763 · Amina T.",
+      "productName": "Station électrique portable",
+      "customerShortName": "Amina T.",
+      "amount": 400,
+      "deepLink": "tanycollect://booking/7ec83e5b-8f5f-4ff5-897b-77c4aa4ddece"
+    }
+  ],
+  "activity": [
+    {
+      "id": "bonus:e846bdce-34c5-462c-86e5-b4a73de00727",
+      "kind": "BONUS_UNLOCKED",
+      "title": "Bonus débloqué",
+      "subtitle": "10 locations atteintes",
+      "amount": 250,
+      "amountKind": "EARNING",
+      "at": "2026-10-04T20:12:29.394Z",
+      "bookingId": null,
+      "productName": null,
+      "bookingReference": null,
+      "bonusMetric": "RENTAL_COUNT",
+      "bonusThreshold": 10,
+      "note": null
+    },
+    {
+      "id": "rental:4f5ee127-1aea-4f09-aab7-a11282a6fcc3",
+      "kind": "RENTAL_COMPLETED",
+      "title": "Location finalisée",
+      "subtitle": "Démarreur de voiture · TNY-3057",
+      "amount": 17.8,
+      "amountKind": "EARNING",
+      "at": "2026-10-04T20:12:29.394Z",
+      "bookingId": "4f5ee127-1aea-4f09-aab7-a11282a6fcc3",
+      "productName": "Démarreur de voiture",
+      "bookingReference": "TNY-3057",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    },
+    {
+      "id": "rental:5fbfc3ca-dfc4-4c0c-bf94-126be10842c0",
+      "kind": "RENTAL_COMPLETED",
+      "title": "Location finalisée",
+      "subtitle": "Mini vidéoprojecteur portable · TNY-1596",
+      "amount": 15.8,
+      "amountKind": "EARNING",
+      "at": "2026-10-04T20:12:29.120Z",
+      "bookingId": "5fbfc3ca-dfc4-4c0c-bf94-126be10842c0",
+      "productName": "Mini vidéoprojecteur portable",
+      "bookingReference": "TNY-1596",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    },
+    {
+      "id": "bonus:1cb58a47-02e9-4faf-8ea0-aa610160429d",
+      "kind": "BONUS_UNLOCKED",
+      "title": "Bonus débloqué",
+      "subtitle": "1 000 DH de locations atteints",
+      "amount": 150,
+      "amountKind": "EARNING",
+      "at": "2026-10-04T20:12:28.910Z",
+      "bookingId": null,
+      "productName": null,
+      "bookingReference": null,
+      "bonusMetric": "RENTAL_REVENUE",
+      "bonusThreshold": 1000,
+      "note": null
+    },
+    {
+      "id": "rental:7ec83e5b-8f5f-4ff5-897b-77c4aa4ddece",
+      "kind": "RENTAL_COMPLETED",
+      "title": "Location finalisée",
+      "subtitle": "Station électrique portable · TNY-8763",
+      "amount": 39.8,
+      "amountKind": "EARNING",
+      "at": "2026-10-04T20:12:28.910Z",
+      "bookingId": "7ec83e5b-8f5f-4ff5-897b-77c4aa4ddece",
+      "productName": "Station électrique portable",
+      "bookingReference": "TNY-8763",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    },
+    {
+      "id": "deposit:bf02648e-bcef-4525-8997-3dc8b171f10e",
+      "kind": "DEPOSIT_REFUNDED",
+      "title": "Caution rendue au client",
+      "subtitle": "TNY-7683",
+      "amount": 250,
+      "amountKind": "DEPOSIT",
+      "at": "2026-10-04T16:56:29.519Z",
+      "bookingId": "70272a2b-8309-424d-bf9d-3c83e098dad2",
+      "productName": null,
+      "bookingReference": "TNY-7683",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    },
+    {
+      "id": "rental:70272a2b-8309-424d-bf9d-3c83e098dad2",
+      "kind": "RENTAL_COMPLETED",
+      "title": "Location finalisée",
+      "subtitle": "Mini vidéoprojecteur portable · TNY-7683",
+      "amount": 15.8,
+      "amountKind": "EARNING",
+      "at": "2026-10-04T16:51:29.519Z",
+      "bookingId": "70272a2b-8309-424d-bf9d-3c83e098dad2",
+      "productName": "Mini vidéoprojecteur portable",
+      "bookingReference": "TNY-7683",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    },
+    {
+      "id": "deposit:46e55048-4c04-4862-bb9e-284810a0f836",
+      "kind": "DEPOSIT_RECEIVED",
+      "title": "Caution reçue",
+      "subtitle": "TNY-2317",
+      "amount": 200,
+      "amountKind": "DEPOSIT",
+      "at": "2026-10-04T16:44:28.910Z",
+      "bookingId": "a5a01b51-89f6-4785-87f3-7bc62af107fe",
+      "productName": null,
+      "bookingReference": "TNY-2317",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    },
+    {
+      "id": "deposit:988eccb5-5a0d-4ed7-8993-5cc2885f1ad8",
+      "kind": "DEPOSIT_RECEIVED",
+      "title": "Caution reçue",
+      "subtitle": "TNY-7683",
+      "amount": 250,
+      "amountKind": "DEPOSIT",
+      "at": "2026-10-04T16:41:29.519Z",
+      "bookingId": "70272a2b-8309-424d-bf9d-3c83e098dad2",
+      "productName": null,
+      "bookingReference": "TNY-7683",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    },
+    {
+      "id": "deposit:b7dd5f85-10aa-48b1-a7dd-cf41cbbfeda7",
+      "kind": "DEPOSIT_REFUNDED",
+      "title": "Caution rendue au client",
+      "subtitle": "TNY-4991",
+      "amount": 200,
+      "amountKind": "DEPOSIT",
+      "at": "2026-10-04T16:31:29.519Z",
+      "bookingId": "36ce873b-5e8c-4dd6-b4ce-ac2776fbce7a",
+      "productName": null,
+      "bookingReference": "TNY-4991",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    },
+    {
+      "id": "rental:36ce873b-5e8c-4dd6-b4ce-ac2776fbce7a",
+      "kind": "RENTAL_COMPLETED",
+      "title": "Location finalisée",
+      "subtitle": "Démarreur de voiture · TNY-4991",
+      "amount": 17.8,
+      "amountKind": "EARNING",
+      "at": "2026-10-04T16:26:29.519Z",
+      "bookingId": "36ce873b-5e8c-4dd6-b4ce-ac2776fbce7a",
+      "productName": "Démarreur de voiture",
+      "bookingReference": "TNY-4991",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    },
+    {
+      "id": "deposit:023c5cce-f16f-4065-af35-6faef0c290cb",
+      "kind": "DEPOSIT_RECEIVED",
+      "title": "Caution reçue",
+      "subtitle": "TNY-4991",
+      "amount": 200,
+      "amountKind": "DEPOSIT",
+      "at": "2026-10-04T16:16:29.519Z",
+      "bookingId": "36ce873b-5e8c-4dd6-b4ce-ac2776fbce7a",
+      "productName": null,
+      "bookingReference": "TNY-4991",
+      "bonusMetric": null,
+      "bonusThreshold": null,
+      "note": null
+    }
+  ],
+  "agreement": {
+    "commissionRatePercent": 20,
+    "commissionLabel": "20 %",
+    "effectiveFrom": "2026-08-31T23:00:00.000Z",
+    "periodLabel": "Mois civil (1–31 octobre)",
+    "bonuses": [
+      {
+        "metric": "RENTAL_COUNT",
+        "threshold": 5,
+        "reward": 100,
+        "label": "+100 DH à 5 locations"
+      },
+      {
+        "metric": "RENTAL_COUNT",
+        "threshold": 10,
+        "reward": 250,
+        "label": "+250 DH à 10 locations"
+      },
+      {
+        "metric": "RENTAL_COUNT",
+        "threshold": 15,
+        "reward": 400,
+        "label": "+400 DH à 15 locations"
+      },
+      {
+        "metric": "RENTAL_COUNT",
+        "threshold": 20,
+        "reward": 600,
+        "label": "+600 DH à 20 locations"
+      },
+      {
+        "metric": "RENTAL_REVENUE",
+        "threshold": 1000,
+        "reward": 150,
+        "label": "+150 DH à 1 000 DH de locations"
+      }
+    ],
+    "note": "Accord de test STAGING (données synthétiques)."
+  },
+  "upcomingAgreement": null,
+  "disclaimer": "Montants estimés selon votre accord TANY, hors cautions. Les cautions appartiennent aux clients : vous les gardez temporairement.",
+  "serverTime": "2026-10-04T20:24:30.266Z"
+}

@@ -1,6 +1,7 @@
 package ma.tany.collect.navigation
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -47,7 +48,11 @@ import ma.tany.collect.feature.activity.ActivityScreen
 import ma.tany.collect.feature.auth.OtpScreen
 import ma.tany.collect.feature.auth.PhoneScreen
 import ma.tany.collect.feature.booking.BookingDetailScreen
+import ma.tany.collect.feature.equipment.AssetDetailScreen
 import ma.tany.collect.feature.equipment.EquipmentScreen
+import ma.tany.collect.feature.notifications.NotificationsScreen
+import ma.tany.collect.feature.revenue.RevenueScreen
+import ma.tany.collect.feature.revenue.SettlementScreen
 import ma.tany.collect.feature.point.PointPickerScreen
 import ma.tany.collect.feature.operations.OperationScanScreen
 import ma.tany.collect.feature.scanner.ScanTarget
@@ -58,6 +63,8 @@ import ma.tany.core.designsystem.R as DsR
 import ma.tany.core.designsystem.component.TanyLoadingState
 import ma.tany.core.designsystem.theme.TanyTheme
 import ma.tany.core.model.collect.CollectMe
+import ma.tany.core.network.ApiResult
+import ma.tany.core.network.CollectNotificationRepository
 import ma.tany.core.network.CollectRepository
 import ma.tany.core.network.SessionState
 import javax.inject.Inject
@@ -86,14 +93,28 @@ private fun AuthFlow() {
     }
 }
 
-/** Loads `/collect/me` once per point: point name and feature flags (equipment tab). */
+/** Loads `/collect/me` once per point (point name, feature flags) and the unread notification count of the point. */
 @HiltViewModel
-class ShellViewModel @Inject constructor(private val repository: CollectRepository) : ViewModel() {
+class ShellViewModel @Inject constructor(
+    private val repository: CollectRepository,
+    private val notifications: CollectNotificationRepository,
+) : ViewModel() {
     private val _me = MutableStateFlow<LoadState<CollectMe>>(LoadState.Loading)
     val me: StateFlow<LoadState<CollectMe>> = _me.asStateFlow()
 
+    private val _unread = MutableStateFlow(0)
+    val unread: StateFlow<Int> = _unread.asStateFlow()
+
     fun load() {
         viewModelScope.launch { _me.value = repository.me().toLoadState() }
+    }
+
+    /** Server count (module OFF ⇒ 0); a failure keeps the last value. */
+    fun refreshUnread(pointId: String) {
+        viewModelScope.launch {
+            val result = notifications.unreadCount(pointId)
+            if (result is ApiResult.Success) _unread.value = if (result.value.enabled) result.value.unreadCount else 0
+        }
     }
 }
 
@@ -117,6 +138,14 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
     NewIntentDeepLinks(navController)
     val backStack by navController.currentBackStackEntryAsState()
     val destination = backStack?.destination
+    val unread by shell.unread.collectAsStateWithLifecycle()
+    // Re-read the unread count each time the merchant comes back to a tab (after the centre, a booking…).
+    LaunchedEffect(pointId, backStack?.id) { shell.refreshUnread(pointId) }
+    val openLink: (String) -> Unit = { link ->
+        val uri = Uri.parse(link)
+        // Only known destinations; an unknown link (newer server) is ignored rather than crashing.
+        if (navController.graph.hasDeepLink(uri)) navController.navigate(uri)
+    }
     val showBar = tabs.any { tab -> destination?.hierarchy?.any { it.hasRoute(tab.type) } == true }
     val colors = TanyTheme.colors
     val openBooking: (String) -> Unit = { navController.navigate(BookingRoute(it)) }
@@ -148,7 +177,13 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
     ) { padding ->
         NavHost(navController, startDestination = TodayRoute, modifier = Modifier.padding(padding)) {
             composable<TodayRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.TODAY })) {
-                TodayScreen(pointId = pointId, pointName = pointName, onOpenBooking = openBooking)
+                TodayScreen(
+                    pointId = pointId,
+                    pointName = pointName,
+                    unreadNotifications = unread,
+                    onOpenNotifications = { navController.navigate(NotificationsRoute) },
+                    onOpenBooking = openBooking,
+                )
             }
             composable<ScanRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.SCAN })) {
                 // Scanner tab: the server resolves the booking and the purpose from the customer's code.
@@ -160,15 +195,34 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
             composable<ActivityRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.ACTIVITY })) {
                 ActivityScreen(pointId = pointId, onOpenBooking = openBooking)
             }
-            composable<EquipmentRoute> { EquipmentScreen(pointId = pointId) }
-            composable<AccountRoute>(
-                deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.REVENUE }, navDeepLink { uriPattern = DeepLinks.SETTLEMENT }),
-            ) {
+            composable<EquipmentRoute> { EquipmentScreen(pointId = pointId, onOpenAsset = { navController.navigate(AssetRoute(it)) }) }
+            composable<AssetRoute> {
+                AssetDetailScreen(pointId = pointId, onBack = { navController.popBackStack() }, onOpenBooking = openBooking)
+            }
+            composable<AccountRoute> {
                 AccountScreen(
                     me = me,
                     activePointId = pointId,
+                    onOpenRevenue = { navController.navigate(RevenueRoute) },
+                    onOpenSettlement = { navController.navigate(SettlementRoute) },
+                    onOpenNotifications = { navController.navigate(NotificationsRoute) },
+                    unreadNotifications = unread,
                     onOpenShowcase = if (InternalTools.enabled) ({ navController.navigate(ShowcaseRoute) }) else null,
                 )
+            }
+            composable<RevenueRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.REVENUE })) {
+                RevenueScreen(
+                    pointId = pointId,
+                    onBack = { navController.popBackStack() },
+                    onOpenBooking = openBooking,
+                    onOpenSettlement = { navController.navigate(SettlementRoute) },
+                )
+            }
+            composable<SettlementRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.SETTLEMENT })) {
+                SettlementScreen(pointId = pointId, onBack = { navController.popBackStack() })
+            }
+            composable<NotificationsRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.NOTIFICATIONS })) {
+                NotificationsScreen(pointId = pointId, onBack = { navController.popBackStack() }, onOpenLink = openLink)
             }
             composable<BookingRoute>(
                 deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.BOOKING }, navDeepLink { uriPattern = DeepLinks.RETURN }),

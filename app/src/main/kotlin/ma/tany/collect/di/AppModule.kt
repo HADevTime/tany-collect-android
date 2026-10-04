@@ -18,7 +18,11 @@ import ma.tany.collect.core.preferences.CollectPreferences
 import ma.tany.collect.core.storage.KeystoreSessionStore
 import ma.tany.core.network.ApiEndpoint
 import ma.tany.core.network.CollectAuthRepository
+import ma.tany.core.network.CollectBusinessRepository
+import ma.tany.core.network.CollectNotificationRepository
 import ma.tany.core.network.CollectOperationsRepository
+import ma.tany.core.network.DefaultCollectBusinessRepository
+import ma.tany.core.network.DefaultCollectNotificationRepository
 import ma.tany.core.network.CollectRepository
 import ma.tany.core.network.DefaultCollectOperationsRepository
 import ma.tany.core.network.DefaultCollectAuthRepository
@@ -96,4 +100,12 @@ object AppModule {
     @Provides
     @Singleton
     fun operationsRepository(api: TanyCollectApi): CollectOperationsRepository = DefaultCollectOperationsRepository(api)
+
+    @Provides
+    @Singleton
+    fun businessRepository(api: TanyCollectApi): CollectBusinessRepository = DefaultCollectBusinessRepository(api)
+
+    @Provides
+    @Singleton
+    fun notificationRepository(api: TanyCollectApi): CollectNotificationRepository = DefaultCollectNotificationRepository(api)
 }

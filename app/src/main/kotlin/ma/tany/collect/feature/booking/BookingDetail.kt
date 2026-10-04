@@ -75,6 +75,7 @@ import ma.tany.core.designsystem.component.rememberConfirmationState
 import ma.tany.core.designsystem.format.ltrIsolated
 import ma.tany.core.designsystem.theme.TanyTheme
 import ma.tany.core.model.collect.MerchantBookingDetail
+import ma.tany.core.model.collect.MerchantDepositAction
 import ma.tany.core.model.collect.OperationKind
 import ma.tany.core.model.collect.ReturnBody
 import ma.tany.core.model.collect.ReturnIncident
@@ -93,7 +94,7 @@ import java.io.File
 import javax.inject.Inject
 
 /** The merchant gesture currently being sent (one at a time). */
-enum class PickupGesture { PHOTO, PAYMENT, HANDOVER, RETURN_STATEMENT }
+enum class PickupGesture { PHOTO, PAYMENT, HANDOVER, RETURN_STATEMENT, DEPOSIT_REFUND }
 
 /** Merchant return statement being prepared (sent once, with the final confirmation). */
 data class ReturnForm(
@@ -107,6 +108,8 @@ data class ReturnForm(
 data class PickupUiState(
     val busy: PickupGesture? = null,
     val error: CollectOperationError? = null,
+    /** Gesture [error] belongs to (each card shows its own refusals). */
+    val failed: PickupGesture? = null,
     /** Condition the merchant declares with the next photo. */
     val photoCondition: AssetCondition = AssetCondition.GOOD,
     val returnForm: ReturnForm = ReturnForm(),
@@ -194,7 +197,7 @@ class BookingDetailViewModel @Inject constructor(
             onDone()
             return
         }
-        _pickup.update { it.copy(busy = gesture, error = null) }
+        _pickup.update { it.copy(busy = gesture, error = null, failed = null) }
         viewModelScope.launch {
             when (val result = call()) {
                 is ApiResult.Success -> {
@@ -202,7 +205,7 @@ class BookingDetailViewModel @Inject constructor(
                     _pickup.update { it.copy(busy = null) }
                 }
                 is ApiResult.Failure -> {
-                    _pickup.update { it.copy(busy = null, error = CollectOperationError.from(result.error)) }
+                    _pickup.update { it.copy(busy = null, error = CollectOperationError.from(result.error), failed = gesture) }
                     // Never retried: the server state is re-read (a network failure may hide a success).
                     reloadQuietly(pointId)
                 }
@@ -230,7 +233,15 @@ class BookingDetailViewModel @Inject constructor(
         }
     }
 
-    fun clearError() = _pickup.update { it.copy(error = null) }
+    /**
+     * « J'ai remis X » (`POST bookings/{id}/deposit-refund`): [amount] = the server's amount to hand back shown on screen,
+     * sent back exactly. If TANY changed it meanwhile the server refuses (`deposit_amount_changed`), the booking is re-read
+     * and the merchant sees the new amount before any cash moves. The customer alone confirms the amount received.
+     */
+    fun handBackDeposit(pointId: String, amount: MoneyAmount, onDone: () -> Unit) =
+        send(pointId, PickupGesture.DEPOSIT_REFUND, onDone) { operations.depositRefund(bookingId, pointId, amount) }
+
+    fun clearError() = _pickup.update { it.copy(error = null, failed = null) }
 
     companion object {
         /** Backend limit on the incident description. */
@@ -271,6 +282,9 @@ fun BookingDetailScreen(
     val returnMessage = stringResource(R.string.return_statement_message)
     val returnMessageIssue = stringResource(R.string.return_statement_message_issue)
     val returnCta = stringResource(R.string.return_statement_cta)
+    val depositTitle = stringResource(R.string.deposit_confirm_title)
+    val depositMessage = stringResource(R.string.deposit_confirm_message)
+    val depositCta = stringResource(R.string.deposit_confirm_cta)
 
     Column(Modifier.fillMaxSize()) {
         TanyTopBar(title = stringResource(R.string.booking_title), onBack = onBack, chrome = true)
@@ -306,6 +320,19 @@ fun BookingDetailScreen(
                             ConfirmationRequest(id = "pickup-handover", title = handoverTitle, message = handoverMessage, confirmLabel = handoverCta),
                         )
                     },
+                    scanDepositQr = { onScanCustomer(viewModel.bookingId, QrPurpose.DEPOSIT_REFUND) },
+                    handBackDeposit = { amount ->
+                        confirmation.show(
+                            ConfirmationRequest(
+                                id = "deposit-refund",
+                                title = depositTitle,
+                                message = depositMessage,
+                                confirmLabel = depositCta,
+                                kind = ConfirmationKind.FINANCIAL,
+                                amount = amount,
+                            ),
+                        )
+                    },
                     updateReturn = viewModel::updateReturnForm,
                     declareReturn = {
                         val form = pickup.returnForm
@@ -330,6 +357,7 @@ fun BookingDetailScreen(
             "pickup-cash" -> request.amount?.let { amount -> viewModel.confirmPayment(pointId, amount, confirmation::finish) } ?: confirmation.finish()
             "pickup-handover" -> if (booking != null) viewModel.handover(pointId, confirmation::finish) else confirmation.finish()
             "return-statement" -> viewModel.declareReturn(pointId, confirmation::finish)
+            "deposit-refund" -> request.amount?.let { amount -> viewModel.handBackDeposit(pointId, amount, confirmation::finish) } ?: confirmation.finish()
             else -> confirmation.finish()
         }
     }
@@ -342,6 +370,8 @@ private class PickupActions(
     val onCondition: (AssetCondition) -> Unit,
     val cash: (MoneyAmount) -> Unit,
     val handover: () -> Unit,
+    val scanDepositQr: () -> Unit,
+    val handBackDeposit: (MoneyAmount) -> Unit,
     val updateReturn: ((ReturnForm) -> ReturnForm) -> Unit,
     val declareReturn: () -> Unit,
 )
@@ -377,6 +407,7 @@ private fun Content(booking: MerchantBookingDetail, endpoint: ApiEndpoint, picku
         if (booking.kind == OperationKind.RETURN && booking.status == BookingStatus.COLLECTED) {
             ReturnCard(booking, pickup, actions)
         }
+        DepositCard(booking, pickup, actions)
         TanyCard {
             TanyInfoRow(stringResource(R.string.booking_pickup_window)) {
                 BusinessDateTimeText(booking.pickupWindowStart, end = booking.pickupWindowEnd)
@@ -476,7 +507,7 @@ private fun PickupCard(booking: MerchantBookingDetail, pickup: PickupUiState, ac
             loading = pickup.busy == PickupGesture.HANDOVER,
         )
         Step(label = stringResource(R.string.pickup_step_customer_confirms), done = facts?.customerConfirmedAt != null, action = null, onAction = {})
-        pickup.error?.let {
+        pickup.error?.takeIf { pickup.failed != PickupGesture.DEPOSIT_REFUND }?.let {
             Text(
                 it.text(),
                 color = TanyTheme.colors.danger.accent,
@@ -582,7 +613,62 @@ private fun ReturnCard(booking: MerchantBookingDetail, ui: PickupUiState, action
             loading = ui.busy == PickupGesture.RETURN_STATEMENT,
         )
         Step(label = stringResource(R.string.return_step_customer_confirms), done = facts?.customerConfirmedAt != null, action = null, onAction = {})
-        ui.error?.let {
+        ui.error?.takeIf { ui.failed != PickupGesture.DEPOSIT_REFUND }?.let {
+            Text(
+                it.text(),
+                color = TanyTheme.colors.danger.accent,
+                style = TanyTheme.typography.label,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
+    }
+}
+
+/**
+ * Deposit hand-back = the server's facts: amount to hand back (`deposit.toRefundAmount`), deferred-refund QR check
+ * (`refundPickup`), merchant / customer confirmations. Shown only while the server expects the gesture
+ * (`merchantAction == HAND_BACK`) or awaits the customer's confirmation. The decision and the amount are TANY's; the
+ * customer alone confirms the amount received.
+ */
+@Composable
+private fun DepositCard(booking: MerchantBookingDetail, ui: PickupUiState, actions: PickupActions) {
+    val deposit = booking.deposit ?: return
+    val handedBack = deposit.merchantRefundConfirmedAt != null
+    val awaitingCustomer = handedBack && deposit.customerRefundConfirmedAt == null
+    if (deposit.merchantAction != MerchantDepositAction.HAND_BACK && !awaitingCustomer) return
+    val busy = ui.busy != null
+    val amount = deposit.toRefundAmount
+    val refundPickup = deposit.refundPickup
+    TanyCard {
+        Text(stringResource(R.string.deposit_title), style = TanyTheme.typography.headline)
+        if (refundPickup?.partial == true) {
+            Text(stringResource(R.string.deposit_partial), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
+        }
+        if (awaitingCustomer) {
+            Text(stringResource(R.string.deposit_waiting_customer), style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted)
+        }
+        if (refundPickup?.qrRequired == true) {
+            // A refused hand-back (`deposit_refund_qr_required`, check older than 15 min) offers the scan again.
+            val qrMissing = ui.failed == PickupGesture.DEPOSIT_REFUND && ui.error == CollectOperationError.DepositRefundQrRequired
+            Step(
+                label = stringResource(R.string.deposit_step_qr),
+                done = refundPickup.verifiedAt != null && !qrMissing,
+                action = if (!handedBack) stringResource(R.string.deposit_scan_qr) else null,
+                onAction = actions.scanDepositQr,
+                enabled = !busy,
+            )
+        }
+        Step(
+            label = stringResource(R.string.deposit_step_hand_back),
+            done = handedBack,
+            action = if (!handedBack && amount > MoneyAmount.ZERO) stringResource(R.string.deposit_hand_back_action) else null,
+            onAction = { actions.handBackDeposit(amount) },
+            enabled = !busy,
+            loading = ui.busy == PickupGesture.DEPOSIT_REFUND,
+            trailing = { MoneyText(amount) },
+        )
+        Step(label = stringResource(R.string.deposit_step_customer), done = deposit.customerRefundConfirmedAt != null, action = null, onAction = {})
+        ui.error?.takeIf { ui.failed == PickupGesture.DEPOSIT_REFUND }?.let {
             Text(
                 it.text(),
                 color = TanyTheme.colors.danger.accent,

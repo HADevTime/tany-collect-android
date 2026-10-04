@@ -1,0 +1,93 @@
+{
+  "asset": {
+    "id": "asset-DDV001",
+    "code": "DDV001",
+    "product": {
+      "id": "prod-demarreur-de-voiture",
+      "name": "Démarreur de voiture",
+      "image": "/images/jumpstarter.png",
+      "catalogImageUrl": null
+    },
+    "status": "WITH_CUSTOMER",
+    "statusLabel": "Chez client",
+    "group": "OUT",
+    "tone": "NEUTRAL",
+    "attention": false,
+    "attentionLabel": null,
+    "attentionReason": null,
+    "maintenance": false,
+    "condition": "good",
+    "currentBooking": {
+      "id": "a5a01b51-89f6-4785-87f3-7bc62af107fe",
+      "reference": "TNY-2317",
+      "status": "COLLECTED",
+      "usageDate": "2026-10-05",
+      "usageEndDate": "2026-10-05",
+      "dayCount": 1,
+      "pickupWindowStart": "2026-10-04T16:24:28.910Z",
+      "pickupWindowEnd": "2026-10-04T18:24:28.910Z",
+      "returnWindowStart": "2026-10-04T23:24:28.910Z",
+      "returnDeadline": "2026-10-05T01:24:28.910Z",
+      "usagePeriod": {
+        "startDate": "2026-10-05",
+        "endDate": "2026-10-05",
+        "dayCount": 1
+      },
+      "pricing": {
+        "dailyPrice": 89,
+        "dayCount": 1,
+        "rentalTotal": 89,
+        "deposit": 200,
+        "currency": "MAD",
+        "totalDueAtPickup": 289
+      }
+    },
+    "nextBooking": null,
+    "collectPoint": {
+      "id": "cp-maarif",
+      "name": "TANY Collect Maarif"
+    },
+    "inServiceSince": "2026-09-29T08:32:00.000Z",
+    "completedBookings": 2,
+    "upcomingBookings": 0,
+    "turnaroundMinutes": 90,
+    "incidentsCount": 0,
+    "lastIncidentAt": null,
+    "lifecycle": {
+      "status": "not_configured",
+      "label": "Non configuré",
+      "percentage": null,
+      "estimatedReplacementDate": null,
+      "estimatedRemainingUses": null
+    },
+    "recentBookings": [
+      {
+        "reference": "TNY-1004",
+        "usageDate": "2026-10-02",
+        "usageEndDate": "2026-10-02",
+        "dayCount": 1,
+        "usagePeriod": {
+          "startDate": "2026-10-02",
+          "endDate": "2026-10-02",
+          "dayCount": 1
+        },
+        "status": "COMPLETED",
+        "statusLabel": "Terminée"
+      },
+      {
+        "reference": "TNY-5195",
+        "usageDate": "2026-09-29",
+        "usageEndDate": "2026-09-29",
+        "dayCount": 1,
+        "usagePeriod": {
+          "startDate": "2026-09-29",
+          "endDate": "2026-09-29",
+          "dayCount": 1
+        },
+        "status": "COMPLETED",
+        "statusLabel": "Terminée"
+      }
+    ],
+    "serverTime": "2026-10-04T20:24:30.635Z"
+  }
+}

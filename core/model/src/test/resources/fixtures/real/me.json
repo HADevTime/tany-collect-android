@@ -1,0 +1,32 @@
+{
+ "user": {
+  "id": "user-merchant-maarif",
+  "firstName": "Ayoub",
+  "lastName": "— TANY Collect Maarif",
+  "phone": "+212600000002",
+  "role": "MERCHANT"
+ },
+ "collectPoints": [
+  {
+   "id": "cp-maarif",
+   "name": "TANY Collect Maarif",
+   "shortName": "Maarif",
+   "address": "12 Rue Ibnou Mokla, Maarif",
+   "city": "Casablanca",
+   "phone": "+212522000001",
+   "isOpenNow": false,
+   "openingStatus": "Fermé — ouvre demain à 9h",
+   "openingState": {
+    "kind": "OPENS_TOMORROW",
+    "time": "09:00",
+    "day": null
+   },
+   "todayHours": null
+  }
+ ],
+ "features": {
+  "assets": true,
+  "depositRefundPickup": true
+ },
+ "serverTime": "2026-10-04T03:59:18.913Z"
+}

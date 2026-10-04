@@ -1,0 +1,303 @@
+{
+ "collectPoint": {
+  "id": "cp-maarif",
+  "name": "TANY Collect Maarif",
+  "shortName": "Maarif",
+  "address": "12 Rue Ibnou Mokla, Maarif",
+  "city": "Casablanca",
+  "phone": "+212522000001",
+  "isOpenNow": false,
+  "openingStatus": "Fermé — ouvre demain à 9h",
+  "openingState": {
+   "kind": "OPENS_TOMORROW",
+   "time": "09:00",
+   "day": null
+  },
+  "todayHours": null
+ },
+ "operations": [
+  {
+   "id": "booking-demo-i",
+   "reference": "TNY-1010",
+   "kind": "RETURN",
+   "phase": "deposit_awaiting_customer",
+   "scheduledAt": "2026-10-03T21:59:08.913Z",
+   "windowEnd": null,
+   "returnDeadline": "2026-10-03T21:59:08.913Z",
+   "usageDate": "2026-10-03",
+   "usageEndDate": "2026-10-03",
+   "dayCount": 1,
+   "returnWindowStart": null,
+   "dailyPrice": 199,
+   "usagePeriod": {
+    "startDate": "2026-10-03",
+    "endDate": "2026-10-03",
+    "dayCount": 1
+   },
+   "pricing": {
+    "dailyPrice": 199,
+    "dayCount": 1,
+    "rentalTotal": 199,
+    "deposit": 400,
+    "currency": "MAD",
+    "totalDueAtPickup": 599
+   },
+   "pickupWindowStart": "2026-10-02T11:59:08.913Z",
+   "pickupWindowEnd": "2026-10-02T13:59:08.913Z",
+   "customer": {
+    "shortName": "Youssef B.",
+    "phoneLast4": "0010"
+   },
+   "product": {
+    "id": "prod-station-electrique-portable",
+    "name": "Station électrique portable",
+    "image": "/images/station.png",
+    "catalogImageUrl": null
+   },
+   "assetCode": "SEP001",
+   "rentalAmount": 199,
+   "depositAmount": 400,
+   "depositRefundAmount": 400,
+   "depositAction": "NONE",
+   "depositHeadline": "400 DH remis — confirmation client attendue",
+   "depositState": "REFUND_AWAITING_CUSTOMER",
+   "currency": "MAD",
+   "lateMinutes": null,
+   "nextBookingAt": null,
+   "waitingSince": "2026-10-03T20:59:08.915Z",
+   "waitingMinutes": 420,
+   "customerConfirmationOverdue": true,
+   "updatedAt": "2026-10-04T03:59:08.839Z",
+   "completedAt": null
+  },
+  {
+   "id": "booking-demo-h",
+   "reference": "TNY-1009",
+   "kind": "RETURN",
+   "phase": "return_due",
+   "scheduledAt": "2026-10-04T05:29:08.910Z",
+   "windowEnd": null,
+   "returnDeadline": "2026-10-04T05:29:08.910Z",
+   "usageDate": "2026-10-04",
+   "usageEndDate": "2026-10-04",
+   "dayCount": 1,
+   "returnWindowStart": null,
+   "dailyPrice": 79,
+   "usagePeriod": {
+    "startDate": "2026-10-04",
+    "endDate": "2026-10-04",
+    "dayCount": 1
+   },
+   "pricing": {
+    "dailyPrice": 79,
+    "dayCount": 1,
+    "rentalTotal": 79,
+    "deposit": 250,
+    "currency": "MAD",
+    "totalDueAtPickup": 329
+   },
+   "pickupWindowStart": "2026-10-03T21:59:08.910Z",
+   "pickupWindowEnd": "2026-10-03T23:59:08.910Z",
+   "customer": {
+    "shortName": "Omar T.",
+    "phoneLast4": "0013"
+   },
+   "product": {
+    "id": "prod-mini-videoprojecteur-portable",
+    "name": "Mini vidéoprojecteur portable",
+    "image": "/images/projector.png",
+    "catalogImageUrl": null
+   },
+   "assetCode": "MVP001",
+   "rentalAmount": 79,
+   "depositAmount": 250,
+   "depositRefundAmount": null,
+   "depositAction": "NONE",
+   "depositHeadline": "Caution détenue : 250 DH",
+   "depositState": "HELD",
+   "currency": "MAD",
+   "lateMinutes": null,
+   "nextBookingAt": null,
+   "waitingSince": null,
+   "waitingMinutes": null,
+   "customerConfirmationOverdue": false,
+   "updatedAt": "2026-10-04T03:59:08.839Z",
+   "completedAt": "2026-10-03T22:29:08.910Z"
+  },
+  {
+   "id": "booking-demo-c",
+   "reference": "TNY-1003",
+   "kind": "RETURN",
+   "phase": "return_due",
+   "scheduledAt": "2026-10-04T22:59:08.859Z",
+   "windowEnd": null,
+   "returnDeadline": "2026-10-04T22:59:08.859Z",
+   "usageDate": "2026-10-04",
+   "usageEndDate": "2026-10-04",
+   "dayCount": 1,
+   "returnWindowStart": null,
+   "dailyPrice": 25,
+   "usagePeriod": {
+    "startDate": "2026-10-04",
+    "endDate": "2026-10-04",
+    "dayCount": 1
+   },
+   "pricing": {
+    "dailyPrice": 25,
+    "dayCount": 1,
+    "rentalTotal": 25,
+    "deposit": 150,
+    "currency": "MAD",
+    "totalDueAtPickup": 175
+   },
+   "pickupWindowStart": "2026-10-03T22:59:08.859Z",
+   "pickupWindowEnd": "2026-10-04T00:59:08.859Z",
+   "customer": {
+    "shortName": "Amina T.",
+    "phoneLast4": "0001"
+   },
+   "product": {
+    "id": "prod-perceuse-sans-fil",
+    "name": "Perceuse sans fil",
+    "image": "/images/drill.png",
+    "catalogImageUrl": null
+   },
+   "assetCode": "PSF001",
+   "rentalAmount": 25,
+   "depositAmount": 150,
+   "depositRefundAmount": null,
+   "depositAction": "NONE",
+   "depositHeadline": "En attente de décision TANY — aucune action financière",
+   "depositState": "UNDER_REVIEW",
+   "currency": "MAD",
+   "lateMinutes": null,
+   "nextBookingAt": null,
+   "waitingSince": null,
+   "waitingMinutes": null,
+   "customerConfirmationOverdue": false,
+   "updatedAt": "2026-10-04T03:59:08.839Z",
+   "completedAt": "2026-10-03T22:59:08.859Z"
+  },
+  {
+   "id": "booking-demo-b",
+   "reference": "TNY-1002",
+   "kind": "PICKUP",
+   "phase": "pickup_ready",
+   "scheduledAt": "2026-10-04T03:49:08.856Z",
+   "windowEnd": "2026-10-04T05:49:08.856Z",
+   "returnDeadline": "2026-10-05T03:49:08.856Z",
+   "usageDate": "2026-10-05",
+   "usageEndDate": "2026-10-05",
+   "dayCount": 1,
+   "returnWindowStart": null,
+   "dailyPrice": 150,
+   "usagePeriod": {
+    "startDate": "2026-10-05",
+    "endDate": "2026-10-05",
+    "dayCount": 1
+   },
+   "pricing": {
+    "dailyPrice": 150,
+    "dayCount": 1,
+    "rentalTotal": 150,
+    "deposit": 300,
+    "currency": "MAD",
+    "totalDueAtPickup": 450
+   },
+   "pickupWindowStart": "2026-10-04T03:49:08.856Z",
+   "pickupWindowEnd": "2026-10-04T05:49:08.856Z",
+   "customer": {
+    "shortName": "Amina T.",
+    "phoneLast4": "0001"
+   },
+   "product": {
+    "id": "prod-nettoyeur-pro-canapes",
+    "name": "Nettoyeur Pro des canapés",
+    "image": "/images/cleaner.png",
+    "catalogImageUrl": null
+   },
+   "assetCode": "NPC002",
+   "rentalAmount": 150,
+   "depositAmount": 300,
+   "depositRefundAmount": null,
+   "depositAction": "COLLECT",
+   "depositHeadline": "Caution à recevoir : 300 DH",
+   "depositState": "PENDING",
+   "currency": "MAD",
+   "lateMinutes": null,
+   "nextBookingAt": null,
+   "waitingSince": null,
+   "waitingMinutes": null,
+   "customerConfirmationOverdue": false,
+   "updatedAt": "2026-10-04T03:59:08.839Z",
+   "completedAt": null
+  }
+ ],
+ "completedToday": [
+  {
+   "id": "booking-demo-d",
+   "reference": "TNY-1004",
+   "kind": "RETURN",
+   "phase": "completed",
+   "scheduledAt": "2026-10-02T03:59:08.863Z",
+   "windowEnd": null,
+   "returnDeadline": "2026-10-02T03:59:08.863Z",
+   "usageDate": "2026-10-02",
+   "usageEndDate": "2026-10-02",
+   "dayCount": 1,
+   "returnWindowStart": null,
+   "dailyPrice": 89,
+   "usagePeriod": {
+    "startDate": "2026-10-02",
+    "endDate": "2026-10-02",
+    "dayCount": 1
+   },
+   "pricing": {
+    "dailyPrice": 89,
+    "dayCount": 1,
+    "rentalTotal": 89,
+    "deposit": 200,
+    "currency": "MAD",
+    "totalDueAtPickup": 289
+   },
+   "pickupWindowStart": "2026-10-01T03:59:08.863Z",
+   "pickupWindowEnd": "2026-10-01T05:59:08.863Z",
+   "customer": {
+    "shortName": "Amina T.",
+    "phoneLast4": "0001"
+   },
+   "product": {
+    "id": "prod-demarreur-de-voiture",
+    "name": "Démarreur de voiture",
+    "image": "/images/jumpstarter.png",
+    "catalogImageUrl": null
+   },
+   "assetCode": "DDV001",
+   "rentalAmount": 89,
+   "depositAmount": 200,
+   "depositRefundAmount": null,
+   "depositAction": "NONE",
+   "depositHeadline": "Caution remboursée : 200 DH",
+   "depositState": "REFUNDED",
+   "currency": "MAD",
+   "lateMinutes": null,
+   "nextBookingAt": null,
+   "waitingSince": null,
+   "waitingMinutes": null,
+   "customerConfirmationOverdue": false,
+   "updatedAt": "2026-10-04T03:59:08.839Z",
+   "completedAt": "2026-10-02T04:59:08.863Z"
+  }
+ ],
+ "counts": {
+  "toCollect": 1,
+  "toReturn": 2,
+  "awaitingCustomer": 1,
+  "late": 0,
+  "blocked": 0,
+  "noShow": 0,
+  "completedToday": 1
+ },
+ "gracePeriodMinutes": 60,
+ "serverTime": "2026-10-04T03:59:18.924Z"
+}

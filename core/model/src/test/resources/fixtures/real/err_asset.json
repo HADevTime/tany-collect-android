@@ -1,0 +1,10 @@
+{
+ "error": {
+  "code": "pickup_too_early",
+  "message": "Collecte prévue le lundi 5 octobre à partir de 09:00 — pas avant.",
+  "reason": "PICKUP_TOO_EARLY",
+  "usageDate": "2026-10-05",
+  "pickupWindowStart": "2026-10-05T09:00:00.000Z",
+  "pickupWindowEnd": "2026-10-05T11:00:00.000Z"
+ }
+}

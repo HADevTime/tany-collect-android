@@ -1,0 +1,147 @@
+{
+ "enabled": true,
+ "collectPointId": "cp-maarif",
+ "currency": "MAD",
+ "period": {
+  "key": "2026-10",
+  "label": "octobre 2026",
+  "rangeLabel": "1–31 octobre",
+  "start": "2026-10-01T00:00:00.000Z",
+  "end": "2026-11-01T00:00:00.000Z",
+  "isCurrent": true,
+  "previousKey": "2026-09",
+  "nextKey": null
+ },
+ "periods": [
+  {
+   "key": "2026-10",
+   "label": "octobre 2026",
+   "isCurrent": true
+  },
+  {
+   "key": "2026-09",
+   "label": "septembre 2026",
+   "isCurrent": false
+  },
+  {
+   "key": "2026-08",
+   "label": "août 2026",
+   "isCurrent": false
+  },
+  {
+   "key": "2026-07",
+   "label": "juillet 2026",
+   "isCurrent": false
+  },
+  {
+   "key": "2026-06",
+   "label": "juin 2026",
+   "isCurrent": false
+  },
+  {
+   "key": "2026-05",
+   "label": "mai 2026",
+   "isCurrent": false
+  },
+  {
+   "key": "2026-04",
+   "label": "avril 2026",
+   "isCurrent": false
+  },
+  {
+   "key": "2026-03",
+   "label": "mars 2026",
+   "isCurrent": false
+  },
+  {
+   "key": "2026-02",
+   "label": "février 2026",
+   "isCurrent": false
+  },
+  {
+   "key": "2026-01",
+   "label": "janvier 2026",
+   "isCurrent": false
+  },
+  {
+   "key": "2025-12",
+   "label": "décembre 2025",
+   "isCurrent": false
+  },
+  {
+   "key": "2025-11",
+   "label": "novembre 2025",
+   "isCurrent": false
+  }
+ ],
+ "earnings": {
+  "status": "ESTIMATED",
+  "title": "Gains estimés ce mois",
+  "amount": 0,
+  "commissionAmount": 0,
+  "bonusAmount": 0,
+  "adjustmentAmount": 0,
+  "previousAmount": 0,
+  "hasAgreement": false
+ },
+ "performance": {
+  "rentals": 2,
+  "rentalRevenue": 288,
+  "previousRentals": 0,
+  "previousRentalRevenue": 0
+ },
+ "bonus": null,
+ "deposits": {
+  "count": 3,
+  "amount": 800,
+  "toHandBack": {
+   "count": 0,
+   "amount": 0
+  },
+  "awaitingCustomer": {
+   "count": 1,
+   "amount": 400
+  },
+  "underReview": {
+   "count": 1,
+   "amount": 150
+  }
+ },
+ "actions": [],
+ "activity": [
+  {
+   "id": "rental:booking-demo-i",
+   "kind": "RENTAL_COMPLETED",
+   "title": "Location finalisée",
+   "subtitle": "Station électrique portable · TNY-1010",
+   "amount": 0,
+   "amountKind": "EARNING",
+   "at": "2026-10-03T20:59:08.913Z",
+   "bookingId": "booking-demo-i",
+   "productName": "Station électrique portable",
+   "bookingReference": "TNY-1010",
+   "bonusMetric": null,
+   "bonusThreshold": null,
+   "note": null
+  },
+  {
+   "id": "rental:booking-demo-d",
+   "kind": "RENTAL_COMPLETED",
+   "title": "Location finalisée",
+   "subtitle": "Démarreur de voiture · TNY-1004",
+   "amount": 0,
+   "amountKind": "EARNING",
+   "at": "2026-10-02T04:59:08.863Z",
+   "bookingId": "booking-demo-d",
+   "productName": "Démarreur de voiture",
+   "bookingReference": "TNY-1004",
+   "bonusMetric": null,
+   "bonusThreshold": null,
+   "note": null
+  }
+ ],
+ "agreement": null,
+ "upcomingAgreement": null,
+ "disclaimer": "Montants estimés selon votre accord TANY, hors cautions. Les cautions appartiennent aux clients : vous les gardez temporairement.",
+ "serverTime": "2026-10-04T03:59:19.146Z"
+}

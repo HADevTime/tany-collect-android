@@ -1,0 +1,48 @@
+{
+ "enabled": true,
+ "collectPointId": "cp-maarif",
+ "currency": "MAD",
+ "serverTime": "2026-10-04T03:59:19.180Z",
+ "configured": false,
+ "method": null,
+ "policyLabel": null,
+ "policy": null,
+ "summary": {
+  "status": "NOT_CONFIGURED",
+  "headline": "Règlement TANY",
+  "amountDue": 0,
+  "amountDueCents": 0,
+  "alreadyCollected": 0,
+  "alreadyCollectedCents": 0,
+  "overdue": false,
+  "dueAt": null,
+  "nextVisit": null,
+  "lastCompleted": null,
+  "lastPartialRemaining": null
+ },
+ "breakdown": {
+  "rentalRevenue": 0,
+  "commission": 0,
+  "bonus": 0,
+  "partnerAdjustments": 0,
+  "tanyRentalShare": 0,
+  "depositsRetained": 0,
+  "settlementAdjustments": 0,
+  "total": 0,
+  "alreadyCollected": 0,
+  "remaining": 0,
+  "totalCents": 0,
+  "remainingCents": 0
+ },
+ "upcoming": null,
+ "heldDeposits": {
+  "count": 3,
+  "amount": 800,
+  "label": "Cautions clients encore détenues",
+  "note": "Non incluses dans le règlement — ne pas remettre à l'agent TANY."
+ },
+ "activeCollection": null,
+ "statements": [],
+ "history": [],
+ "disclaimer": "Montant calculé selon votre accord TANY. Il n'est considéré comme remis qu'après votre confirmation et celle de l'agent TANY. Les cautions clients ne font jamais partie du règlement."
+}

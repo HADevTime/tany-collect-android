@@ -16,6 +16,10 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
@@ -72,8 +76,11 @@ import ma.tany.core.designsystem.format.ltrIsolated
 import ma.tany.core.designsystem.theme.TanyTheme
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.OperationKind
+import ma.tany.core.model.collect.ReturnBody
+import ma.tany.core.model.collect.ReturnIncident
 import ma.tany.core.model.common.AssetCondition
 import ma.tany.core.model.common.BookingStatus
+import ma.tany.core.model.common.IncidentType
 import ma.tany.core.model.common.MoneyAmount
 import ma.tany.core.model.common.PaymentStatus
 import ma.tany.core.model.common.QrPurpose
@@ -86,13 +93,23 @@ import java.io.File
 import javax.inject.Inject
 
 /** The merchant gesture currently being sent (one at a time). */
-enum class PickupGesture { PHOTO, PAYMENT, HANDOVER }
+enum class PickupGesture { PHOTO, PAYMENT, HANDOVER, RETURN_STATEMENT }
+
+/** Merchant return statement being prepared (sent once, with the final confirmation). */
+data class ReturnForm(
+    val condition: AssetCondition = AssetCondition.GOOD,
+    /** Accessory names as listed by the server (`product.includedAccessories`), verbatim. */
+    val missingAccessories: Set<String> = emptySet(),
+    val incidentType: IncidentType? = null,
+    val incidentDescription: String = "",
+)
 
 data class PickupUiState(
     val busy: PickupGesture? = null,
     val error: CollectOperationError? = null,
     /** Condition the merchant declares with the next photo. */
     val photoCondition: AssetCondition = AssetCondition.GOOD,
+    val returnForm: ReturnForm = ReturnForm(),
 )
 
 /**
@@ -147,11 +164,13 @@ class BookingDetailViewModel @Inject constructor(
             return
         }
         val condition = _pickup.value.photoCondition
+        // Same gesture for pickup and return photos: the purpose follows the server's operation kind.
+        val purpose = if ((_state.value as? LoadState.Loaded)?.value?.kind == OperationKind.RETURN) QrPurpose.RETURN else QrPurpose.PICKUP
         send(pointId, PickupGesture.PHOTO) {
             try {
                 val jpeg = runCatching { photos.encode(file) }.getOrNull()
                     ?: return@send ApiResult.Failure(PHOTO_UNREADABLE)
-                operations.uploadPhoto(bookingId, pointId, QrPurpose.PICKUP, condition, jpeg)
+                operations.uploadPhoto(bookingId, pointId, purpose, condition, jpeg)
             } finally {
                 photos.discard(file)
             }
@@ -192,9 +211,31 @@ class BookingDetailViewModel @Inject constructor(
         }
     }
 
+    fun updateReturnForm(change: (ReturnForm) -> ReturnForm) = _pickup.update { it.copy(returnForm = change(it.returnForm)) }
+
+    /**
+     * Merchant return statement (`POST bookings/{id}/return`). Missing accessories and the incident are a statement only:
+     * the customer confirms the return in TANY, and any deposit consequence is decided by TANY.
+     */
+    fun declareReturn(pointId: String, onDone: () -> Unit) {
+        val form = _pickup.value.returnForm
+        val body = ReturnBody(
+            collectPointId = pointId,
+            condition = if (form.incidentType != null || form.missingAccessories.isNotEmpty()) AssetCondition.ISSUE_REPORTED else form.condition,
+            missingAccessories = form.missingAccessories.toList(),
+            incident = form.incidentType?.let { ReturnIncident(it, form.incidentDescription.trim().take(INCIDENT_DESCRIPTION_MAX).ifBlank { null }) },
+        )
+        send(pointId, PickupGesture.RETURN_STATEMENT, onDone) {
+            operations.declareReturn(bookingId, body).also { if (it is ApiResult.Success) _pickup.update { s -> s.copy(returnForm = ReturnForm()) } }
+        }
+    }
+
     fun clearError() = _pickup.update { it.copy(error = null) }
 
     companion object {
+        /** Backend limit on the incident description. */
+        const val INCIDENT_DESCRIPTION_MAX = 500
+
         /** Local encoding failure, reported like the server's photo_error. */
         private val PHOTO_UNREADABLE = ma.tany.core.network.ApiError.Http(
             422, ma.tany.core.model.common.ApiErrorCode.PHOTO_ERROR, "photo_error", null,
@@ -206,8 +247,8 @@ class BookingDetailViewModel @Inject constructor(
 fun BookingDetailScreen(
     pointId: String,
     onBack: () -> Unit,
-    onScanCustomer: (bookingId: String) -> Unit,
-    onScanAsset: (bookingId: String) -> Unit,
+    onScanCustomer: (bookingId: String, purpose: QrPurpose) -> Unit,
+    onScanAsset: (bookingId: String, purpose: QrPurpose) -> Unit,
     viewModel: BookingDetailViewModel = hiltViewModel(),
 ) {
     // Reloaded each time the screen shows again (back from a scan): server state only.
@@ -226,19 +267,26 @@ fun BookingDetailScreen(
     val handoverTitle = stringResource(R.string.pickup_handover_title)
     val handoverMessage = stringResource(R.string.pickup_handover_message)
     val handoverCta = stringResource(R.string.pickup_handover_cta)
+    val returnTitle = stringResource(R.string.return_statement_title)
+    val returnMessage = stringResource(R.string.return_statement_message)
+    val returnMessageIssue = stringResource(R.string.return_statement_message_issue)
+    val returnCta = stringResource(R.string.return_statement_cta)
 
     Column(Modifier.fillMaxSize()) {
         TanyTopBar(title = stringResource(R.string.booking_title), onBack = onBack, chrome = true)
         when (val s = state) {
             LoadState.Loading -> TanyLoadingState()
             is LoadState.Failed -> TanyErrorState(stringResource(s.error.messageRes()), onRetry = { viewModel.load(pointId) })
-            is LoadState.Loaded -> Content(
+            is LoadState.Loaded -> {
+                // The scan purpose follows the server's operation kind (pickup or return).
+                val purpose = if (s.value.kind == OperationKind.RETURN) QrPurpose.RETURN else QrPurpose.PICKUP
+                Content(
                 booking = s.value,
                 endpoint = viewModel.endpoint,
                 pickup = pickup,
                 actions = PickupActions(
-                    scanCustomer = { onScanCustomer(viewModel.bookingId) },
-                    scanAsset = { onScanAsset(viewModel.bookingId) },
+                    scanCustomer = { onScanCustomer(viewModel.bookingId, purpose) },
+                    scanAsset = { onScanAsset(viewModel.bookingId, purpose) },
                     takePhoto = { camera.launch(viewModel.photoTarget()) },
                     onCondition = viewModel::onPhotoCondition,
                     cash = { amount ->
@@ -258,8 +306,22 @@ fun BookingDetailScreen(
                             ConfirmationRequest(id = "pickup-handover", title = handoverTitle, message = handoverMessage, confirmLabel = handoverCta),
                         )
                     },
+                    updateReturn = viewModel::updateReturnForm,
+                    declareReturn = {
+                        val form = pickup.returnForm
+                        val issue = form.incidentType != null || form.missingAccessories.isNotEmpty() || form.condition == AssetCondition.ISSUE_REPORTED
+                        confirmation.show(
+                            ConfirmationRequest(
+                                id = "return-statement",
+                                title = returnTitle,
+                                message = if (issue) returnMessageIssue else returnMessage,
+                                confirmLabel = returnCta,
+                            ),
+                        )
+                    },
                 ),
             )
+            }
         }
     }
     ConfirmationSheetHost(confirmation) { request ->
@@ -267,6 +329,7 @@ fun BookingDetailScreen(
         when (request.id) {
             "pickup-cash" -> request.amount?.let { amount -> viewModel.confirmPayment(pointId, amount, confirmation::finish) } ?: confirmation.finish()
             "pickup-handover" -> if (booking != null) viewModel.handover(pointId, confirmation::finish) else confirmation.finish()
+            "return-statement" -> viewModel.declareReturn(pointId, confirmation::finish)
             else -> confirmation.finish()
         }
     }
@@ -279,6 +342,8 @@ private class PickupActions(
     val onCondition: (AssetCondition) -> Unit,
     val cash: (MoneyAmount) -> Unit,
     val handover: () -> Unit,
+    val updateReturn: ((ReturnForm) -> ReturnForm) -> Unit,
+    val declareReturn: () -> Unit,
 )
 
 @Composable
@@ -308,6 +373,9 @@ private fun Content(booking: MerchantBookingDetail, endpoint: ApiEndpoint, picku
         CustomerCard(booking, endpoint)
         if (booking.kind == OperationKind.PICKUP && booking.status == BookingStatus.RESERVED) {
             PickupCard(booking, pickup, actions)
+        }
+        if (booking.kind == OperationKind.RETURN && booking.status == BookingStatus.COLLECTED) {
+            ReturnCard(booking, pickup, actions)
         }
         TanyCard {
             TanyInfoRow(stringResource(R.string.booking_pickup_window)) {
@@ -462,4 +530,129 @@ private fun ConditionChoice(selected: AssetCondition, onSelect: (AssetCondition)
             }
         }
     }
+}
+
+/**
+ * Return checklist = the server's facts (`return.*`); the statement (condition, missing accessories, incident) is sent
+ * once with the final confirmation. Order and requirements (QR → label → photo → statement) are checked by the server.
+ */
+@Composable
+private fun ReturnCard(booking: MerchantBookingDetail, ui: PickupUiState, actions: PickupActions) {
+    val facts = booking.returnInfo
+    val declared = facts?.merchantConfirmedAt != null
+    val busy = ui.busy != null
+    TanyCard {
+        Text(stringResource(R.string.return_title), style = TanyTheme.typography.headline)
+        if (declared) {
+            Text(stringResource(R.string.return_waiting_customer), style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted)
+        }
+        Step(
+            label = stringResource(R.string.return_step_customer),
+            done = facts?.clientVerifiedAt != null,
+            action = if (!declared) stringResource(R.string.pickup_scan_customer) else null,
+            onAction = actions.scanCustomer,
+            enabled = !busy,
+        )
+        Step(
+            label = stringResource(R.string.pickup_step_asset, booking.asset?.code?.let(::ltrIsolated) ?: booking.assetCode?.let(::ltrIsolated).orEmpty()),
+            done = facts?.assetVerifiedAt != null,
+            action = if (!declared) stringResource(R.string.pickup_scan_asset) else null,
+            onAction = actions.scanAsset,
+            enabled = !busy,
+        )
+        val photoCount = facts?.photoCount ?: 0
+        Step(
+            label = stringResource(R.string.pickup_step_photo, photoCount),
+            done = photoCount > 0,
+            action = if (!declared) stringResource(if (photoCount > 0) R.string.pickup_add_photo else R.string.pickup_take_photo) else null,
+            onAction = actions.takePhoto,
+            enabled = !busy,
+            loading = ui.busy == PickupGesture.PHOTO,
+        )
+        if (!declared) {
+            ConditionChoice(ui.photoCondition, actions.onCondition)
+            ReturnStatementForm(booking, ui.returnForm, actions.updateReturn)
+        }
+        Step(
+            label = stringResource(R.string.return_step_statement),
+            done = declared,
+            action = if (!declared) stringResource(R.string.return_statement_action) else null,
+            onAction = actions.declareReturn,
+            enabled = !busy,
+            loading = ui.busy == PickupGesture.RETURN_STATEMENT,
+        )
+        Step(label = stringResource(R.string.return_step_customer_confirms), done = facts?.customerConfirmedAt != null, action = null, onAction = {})
+        ui.error?.let {
+            Text(
+                it.text(),
+                color = TanyTheme.colors.danger.accent,
+                style = TanyTheme.typography.label,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
+    }
+}
+
+/** Incident types the return statement accepts (contract: DAMAGED · MISSING_ACCESSORY · VERY_DIRTY · OTHER). */
+private val RETURN_INCIDENT_TYPES = listOf(IncidentType.DAMAGED, IncidentType.MISSING_ACCESSORY, IncidentType.VERY_DIRTY, IncidentType.OTHER)
+
+@Composable
+private fun ReturnStatementForm(booking: MerchantBookingDetail, form: ReturnForm, update: ((ReturnForm) -> ReturnForm) -> Unit) {
+    val accessories = booking.product.includedAccessories
+    if (accessories.isNotEmpty()) {
+        Text(stringResource(R.string.return_missing_title), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
+        accessories.forEach { name ->
+            val missing = name in form.missingAccessories
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = missing,
+                        role = Role.Checkbox,
+                        onValueChange = { checked ->
+                            update { f -> f.copy(missingAccessories = if (checked) f.missingAccessories + name else f.missingAccessories - name) }
+                        },
+                    )
+                    .padding(vertical = 4.dp),
+            ) {
+                Checkbox(checked = missing, onCheckedChange = null, colors = CheckboxDefaults.colors(checkedColor = TanyTheme.colors.accent))
+                // Accessory names are product data: shown verbatim.
+                Text(name, style = TanyTheme.typography.body, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
+    Text(stringResource(R.string.return_incident_title), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
+    Column(Modifier.selectableGroup()) {
+        (listOf<IncidentType?>(null) + RETURN_INCIDENT_TYPES).forEach { type ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(selected = form.incidentType == type, role = Role.RadioButton, onClick = { update { it.copy(incidentType = type) } })
+                    .padding(vertical = 4.dp),
+            ) {
+                RadioButton(selected = form.incidentType == type, onClick = null, colors = RadioButtonDefaults.colors(selectedColor = TanyTheme.colors.accent))
+                Text(stringResource(type.label()), style = TanyTheme.typography.body, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
+    if (form.incidentType != null) {
+        OutlinedTextField(
+            value = form.incidentDescription,
+            onValueChange = { text -> update { it.copy(incidentDescription = text.take(BookingDetailViewModel.INCIDENT_DESCRIPTION_MAX)) } },
+            label = { Text(stringResource(R.string.return_incident_description)) },
+            supportingText = { Text("${form.incidentDescription.length}/${BookingDetailViewModel.INCIDENT_DESCRIPTION_MAX}") },
+            minLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+private fun IncidentType?.label(): Int = when (this) {
+    null -> R.string.return_incident_none
+    IncidentType.DAMAGED -> R.string.return_incident_damaged
+    IncidentType.MISSING_ACCESSORY -> R.string.return_incident_missing
+    IncidentType.VERY_DIRTY -> R.string.return_incident_dirty
+    else -> R.string.return_incident_other
 }

@@ -17,6 +17,10 @@ import ma.tany.core.model.collect.AssetsResponse
 import ma.tany.core.model.collect.CollectMe
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.MerchantBookingResponse
+import ma.tany.core.model.collect.OperationKind
+import ma.tany.core.model.collect.ReturnBody
+import ma.tany.core.model.collect.ReturnIncident
+import ma.tany.core.model.common.IncidentType
 import ma.tany.core.model.collect.ScanBody
 import ma.tany.core.model.collect.ScanResponse
 import ma.tany.core.model.collect.TodayResponse
@@ -80,6 +84,8 @@ class PickupFlowTest {
         var lastAsset: AssetScanBody? = null
         var lastAmount: MoneyAmount? = null
         var lastPhoto: Triple<String, AssetCondition, ByteArray>? = null
+        var lastPhotoPurpose: QrPurpose? = null
+        var lastReturn: ReturnBody? = null
 
         override suspend fun scan(body: ScanBody): ApiResult<ScanResponse> {
             calls += "scan"; lastScan = body
@@ -92,7 +98,7 @@ class PickupFlowTest {
         }
 
         override suspend fun uploadPhoto(bookingId: String, collectPointId: String, purpose: QrPurpose, condition: AssetCondition, jpeg: ByteArray): ApiResult<MerchantBookingDetail> {
-            calls += "photo"; lastPhoto = Triple(collectPointId, condition, jpeg)
+            calls += "photo"; lastPhoto = Triple(collectPointId, condition, jpeg); lastPhotoPurpose = purpose
             return result
         }
 
@@ -103,6 +109,11 @@ class PickupFlowTest {
 
         override suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail> {
             calls += "handover"
+            return result
+        }
+
+        override suspend fun declareReturn(bookingId: String, body: ReturnBody): ApiResult<MerchantBookingDetail> {
+            calls += "return"; lastReturn = body
             return result
         }
     }
@@ -217,5 +228,45 @@ class PickupFlowTest {
         assertEquals(2, OperationImageMath.inSampleSize(4096, 3072, 2048))
         assertEquals(2048 to 1536, OperationImageMath.fit(4000, 3000, 2048))
         assertEquals(90, OperationImageMath.rotationDegrees(6))
+    }
+
+    @Test
+    fun returnPhotoUsesTheReturnPurpose() = runTest {
+        val returning = booking.copy(kind = OperationKind.RETURN)
+        val ops = FakeOps().apply { result = ApiResult.Success(returning) }
+        val vm = detailVm(FakeCollect(ApiResult.Success(returning)), ops)
+        vm.preparePhoto().writeBytes(byteArrayOf(1))
+        vm.onPhotoCaptured("cp1", success = true)
+        assertEquals(QrPurpose.RETURN, ops.lastPhotoPurpose)
+    }
+
+    @Test
+    fun returnStatementSendsMissingAccessoriesAndIncidentOnce() = runTest {
+        val returning = booking.copy(kind = OperationKind.RETURN)
+        val ops = FakeOps().apply { result = ApiResult.Success(returning) }
+        val vm = detailVm(FakeCollect(ApiResult.Success(returning)), ops)
+        vm.updateReturnForm { it.copy(missingAccessories = setOf("Chargeur")) }
+        vm.updateReturnForm { it.copy(incidentType = IncidentType.DAMAGED, incidentDescription = "  Carter fissuré  ") }
+        var done = 0
+        vm.declareReturn("cp1") { done++ }
+        assertEquals(listOf("return"), ops.calls)
+        assertEquals(
+            ReturnBody(
+                collectPointId = "cp1",
+                // A missing accessory or an incident is an issue: never declared "good".
+                condition = AssetCondition.ISSUE_REPORTED,
+                missingAccessories = listOf("Chargeur"),
+                incident = ReturnIncident(IncidentType.DAMAGED, "Carter fissuré"),
+            ),
+            ops.lastReturn,
+        )
+        assertEquals(1, done)
+        assertTrue(vm.pickup.value.returnForm.missingAccessories.isEmpty()) // reset after success
+
+        vm.declareReturn("cp1") {}
+        assertEquals(
+            ReturnBody(collectPointId = "cp1", condition = AssetCondition.GOOD, missingAccessories = emptyList(), incident = null),
+            ops.lastReturn,
+        )
     }
 }

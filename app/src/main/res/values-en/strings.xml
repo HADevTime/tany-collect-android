@@ -167,4 +167,22 @@
     <string name="pickup_step_customer_confirms">Pickup confirmed by the customer</string>
     <string name="pickup_waiting_customer">Item handed over: waiting for the customer’s confirmation in TANY.</string>
     <string name="pickup_complete_before">Complete before</string>
+    <string name="return_title">Receive the return</string>
+    <string name="return_step_customer">Customer return QR verified</string>
+    <string name="return_missing_title">Missing accessories</string>
+    <string name="return_incident_title">Issue noticed</string>
+    <string name="return_incident_none">No issue</string>
+    <string name="return_incident_damaged">Item damaged</string>
+    <string name="return_incident_missing">Missing accessory</string>
+    <string name="return_incident_dirty">Item very dirty</string>
+    <string name="return_incident_other">Other issue</string>
+    <string name="return_incident_description">Describe the issue</string>
+    <string name="return_step_statement">Return recorded</string>
+    <string name="return_statement_action">Confirm the item was received</string>
+    <string name="return_statement_title">Confirm receipt?</string>
+    <string name="return_statement_message">You confirm you got the item back in good condition. The customer must confirm the return in TANY.</string>
+    <string name="return_statement_message_issue">You confirm you got the item back with the issue reported. The customer must confirm the return in TANY; TANY will then decide on the deposit.</string>
+    <string name="return_statement_cta">I confirm receipt</string>
+    <string name="return_step_customer_confirms">Return confirmed by the customer</string>
+    <string name="return_waiting_customer">Return recorded: waiting for the customer’s confirmation in TANY.</string>
 </resources>

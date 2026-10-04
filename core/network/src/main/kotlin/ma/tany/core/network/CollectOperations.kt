@@ -4,6 +4,7 @@ import ma.tany.core.model.collect.AssetScanBody
 import ma.tany.core.model.collect.HandoverBody
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.PaymentBody
+import ma.tany.core.model.collect.ReturnBody
 import ma.tany.core.model.collect.ScanBody
 import ma.tany.core.model.collect.ScanResponse
 import ma.tany.core.model.common.ApiErrorCode
@@ -38,6 +39,12 @@ interface CollectOperationsRepository {
 
     /** Merchant half of the pickup: the customer alone then moves the booking to COLLECTED. */
     suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail>
+
+    /**
+     * Merchant return statement (condition, missing accessories, incident). The customer alone then confirms the return
+     * in TANY; the incident is only applied at that moment, and any deposit decision is TANY's.
+     */
+    suspend fun declareReturn(bookingId: String, body: ReturnBody): ApiResult<MerchantBookingDetail>
 }
 
 class DefaultCollectOperationsRepository(private val api: TanyCollectApi) : CollectOperationsRepository {
@@ -60,6 +67,9 @@ class DefaultCollectOperationsRepository(private val api: TanyCollectApi) : Coll
 
     override suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail> =
         apiCall { api.handover(bookingId, HandoverBody(collectPointId, condition)).booking }
+
+    override suspend fun declareReturn(bookingId: String, body: ReturnBody): ApiResult<MerchantBookingDetail> =
+        apiCall { api.declareReturn(bookingId, body).booking }
 }
 
 /** Multipart layout of `POST bookings/{id}/photos` (contract field names). */

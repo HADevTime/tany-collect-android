@@ -89,4 +89,30 @@ class PickupOperationsTest {
         assertEquals(CollectOperationError.AssetMismatch("PRC-001", "PRC-002"), CollectOperationError.from((mismatch as ApiResult.Failure).error))
         assertEquals(3, server.requestCount) // never retried
     }
+
+    @Test
+    fun returnStatementCarriesConditionAccessoriesAndIncident() = runTest(UnconfinedTestDispatcher()) {
+        val repo = repo(TestScope(testScheduler))
+        server.enqueue(json(200, fixture("booking_detail")))
+        repo.declareReturn(
+            "bk1",
+            ma.tany.core.model.collect.ReturnBody(
+                collectPointId = "cp1",
+                condition = AssetCondition.ISSUE_REPORTED,
+                missingAccessories = listOf("Chargeur"),
+                incident = ma.tany.core.model.collect.ReturnIncident(ma.tany.core.model.common.IncidentType.DAMAGED, "Carter fissuré"),
+            ),
+        )
+        val request = server.takeRequest()
+        assertEquals("/api/mobile/v1/collect/bookings/bk1/return", request.path)
+        assertEquals(
+            """{"collectPointId":"cp1","condition":"issue_reported","missingAccessories":["Chargeur"],"incident":{"type":"DAMAGED","description":"Carter fissuré"}}""",
+            request.body.readUtf8(),
+        )
+
+        server.enqueue(json(200, fixture("booking_detail")))
+        repo.declareReturn("bk1", ma.tany.core.model.collect.ReturnBody(collectPointId = "cp1", condition = AssetCondition.GOOD))
+        // missingAccessories is always sent (contract), even empty.
+        assertEquals("""{"collectPointId":"cp1","condition":"good","missingAccessories":[]}""", server.takeRequest().body.readUtf8())
+    }
 }

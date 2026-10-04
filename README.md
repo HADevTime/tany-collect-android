@@ -6,8 +6,10 @@ Native Android app for TANY Collect merchants (Kotlin · Jetpack Compose · Mate
 design system, localization, QR/camera and photo foundations, CI) plus the **pickup preparation**: Scanner tab
 (`POST /collect/scan` resolves the booking), and on the booking a checklist of the server's facts — customer QR,
 item label (`asset_mismatch` from the server), photo(s) with declared condition, cash received (the server's amount
-due sent back exactly), handover — then the customer confirms in TANY. The return, deposit, revenue and settlement
-flows come next.
+due sent back exactly), handover — then the customer confirms in TANY; and the **return statement**: customer
+return QR, item label, photo(s), then condition + missing accessories (from `product.includedAccessories`) + incident
+(DAMAGED · MISSING_ACCESSORY · VERY_DIRTY · OTHER), sent once — the customer confirms in TANY and TANY decides on the
+deposit. The deposit hand-back, revenue and settlement flows come next.
 
 ## Source of truth
 

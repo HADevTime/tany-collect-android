@@ -172,4 +172,22 @@
     <string name="pickup_step_customer_confirms">Collecte confirmée par le client</string>
     <string name="pickup_waiting_customer">Objet remis : en attente de la confirmation du client dans TANY.</string>
     <string name="pickup_complete_before">À terminer avant</string>
+    <string name="return_title">Réceptionner le retour</string>
+    <string name="return_step_customer">QR retour du client vérifié</string>
+    <string name="return_missing_title">Accessoires manquants</string>
+    <string name="return_incident_title">Problème constaté</string>
+    <string name="return_incident_none">Aucun problème</string>
+    <string name="return_incident_damaged">Objet endommagé</string>
+    <string name="return_incident_missing">Accessoire manquant</string>
+    <string name="return_incident_dirty">Objet très sale</string>
+    <string name="return_incident_other">Autre problème</string>
+    <string name="return_incident_description">Décrivez le problème</string>
+    <string name="return_step_statement">Retour constaté</string>
+    <string name="return_statement_action">Confirmer la réception de l’objet</string>
+    <string name="return_statement_title">Confirmer la réception ?</string>
+    <string name="return_statement_message">Vous confirmez avoir récupéré l’objet en bon état. Le client devra confirmer le retour dans TANY.</string>
+    <string name="return_statement_message_issue">Vous confirmez avoir récupéré l’objet avec le problème indiqué. Le client devra confirmer le retour dans TANY ; TANY décidera ensuite pour la caution.</string>
+    <string name="return_statement_cta">Je confirme la réception</string>
+    <string name="return_step_customer_confirms">Retour confirmé par le client</string>
+    <string name="return_waiting_customer">Retour constaté : en attente de la confirmation du client dans TANY.</string>
 </resources>

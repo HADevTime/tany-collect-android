@@ -31,7 +31,7 @@ class SettlementFlowTest {
     private class FakeBusiness(var overview: ApiResult<SettlementOverview>) : CollectBusinessRepository {
         val calls = mutableListOf<String>()
         var confirmResult: ApiResult<SettlementOverview> = ApiResult.Failure(ApiError.Unauthorized)
-        var confirmed: SettlementCollection? = null
+        var lastConfirmed: SettlementCollection? = null
 
         override suspend fun revenue(pointId: String, period: String?): ApiResult<RevenueOverview> = ApiResult.Failure(ApiError.Unauthorized)
 
@@ -46,7 +46,7 @@ class SettlementFlowTest {
         }
 
         override suspend fun confirmHandoff(pointId: String, collection: SettlementCollection): ApiResult<SettlementOverview> {
-            calls += "confirm"; confirmed = collection
+            calls += "confirm"; lastConfirmed = collection
             return confirmResult
         }
 
@@ -64,7 +64,7 @@ class SettlementFlowTest {
         var done = 0
         vm.confirm("cp-maarif", awaiting.activeCollection!!) { done++ }
         assertEquals(listOf("read", "confirm"), repo.calls)
-        assertEquals(awaiting.activeCollection, repo.confirmed)
+        assertEquals(awaiting.activeCollection, repo.lastConfirmed)
         assertEquals(confirmed, (vm.state.value as LoadState.Loaded).value)
         assertEquals(1, done)
         assertNull(vm.ui.value.error)

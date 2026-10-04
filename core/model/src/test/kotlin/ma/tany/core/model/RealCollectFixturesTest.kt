@@ -41,7 +41,7 @@ class RealCollectFixturesTest {
 
     @Test
     fun authAndMe() {
-        assertEquals(4, Fixtures.decode<OtpRequestResponse>(real("otp_request")).codeLength)
+        assertEquals(6, Fixtures.decode<OtpRequestResponse>(real("otp_request")).codeLength)
         val auth = Fixtures.decode<CollectAuthResponse>(real("otp_verify"))
         assertEquals(CollectRole.MERCHANT, auth.user.role)
         assertEquals("Maarif", auth.collectPoints.single().shortName)

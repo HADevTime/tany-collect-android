@@ -70,9 +70,30 @@ Demo merchant (DEV/STAGING, OTP shown on screen outside PROD): `+212600000002` (
 Contract fixtures: `core/model/src/test/resources/fixtures/real/` — captured from the real backend
 (`tany-backend/scripts/mobile-e2e-server.ts`, flags ON, tokens replaced) and decoded by `RealCollectFixturesTest`.
 
+## Deliberate MVP choices
+
+- The design-system foundation is duplicated in `tany-android` and `tany-collect-android` on purpose (no shared
+  Android library during the MVP).
+- The launcher icon is a placeholder until the official TANY assets are integrated.
+
 ## Rules
 
 FR / EN / AR (MSA, full RTL, brand names untranslated, identifiers LTR-isolated) · Africa/Casablanca for every
 business time · white studio for product images in both themes · money as integer centimes, exact amounts ·
-no automatic retry of any mutation · push pending backend gap **A-1** (`PushTokenRegistrar` no-op).
+no automatic retry of any mutation · push via FCM (`POST/DELETE /collect/devices`, `platform:"android"`;
+`BackendPushTokenRegistrar`, Firebase token source in the notifications slice).
+
+## Authorization (canonical backend model)
+
+- Collect sessions are `COLLECT_APP` sessions obtained by OTP: valid only for the Collect API — never for TANY
+  Client, **never for the backoffice** (`/admin`, `/agent` require a separate `BACKOFFICE` email + password
+  session), even for an ADMIN account.
+- Roles accepted by `/collect/auth/otp/verify`: **MERCHANT** (attached to an active point) and **ADMIN**
+  (multi-point). Customers, collection agents (web `/agent` only), blocked accounts and accounts without an active
+  point get `account_not_allowed`. The app mirrors this defensively (no session stored for any other role).
+- No OTP demo code (`devCode`) is ever returned for ADMIN / agent numbers, even in STAGING.
+- The app never links to, opens or implies backoffice access; ADMIN only gains the point switcher (scope still
+  re-checked by the server on every request).
+- Collect specifics: 429 `qr_rate_limited` (6-digit fallback, 8 errors / 10 min / point — the QR scan still
+  works); `deposit-refund { expectedAmount }` ⇒ 409 `deposit_amount_changed` + `currentAmount` (reload).
 Git: never commit on `main`; feature branches, PR, CI green before merge, no force push. CI runs on PRs only.

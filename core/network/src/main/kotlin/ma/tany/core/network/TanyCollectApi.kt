@@ -7,6 +7,7 @@ import ma.tany.core.model.collect.AssetsResponse
 import ma.tany.core.model.collect.CollectAuthResponse
 import ma.tany.core.model.collect.CollectMe
 import ma.tany.core.model.collect.CollectPointBody
+import ma.tany.core.model.collect.DepositRefundBody
 import ma.tany.core.model.collect.HandoverBody
 import ma.tany.core.model.collect.IncidentBody
 import ma.tany.core.model.collect.IncidentsResponse
@@ -20,6 +21,8 @@ import ma.tany.core.model.collect.ScanBody
 import ma.tany.core.model.collect.ScanResponse
 import ma.tany.core.model.collect.SettlementOverview
 import ma.tany.core.model.common.AppConfig
+import ma.tany.core.model.common.DeviceRegistrationBody
+import ma.tany.core.model.common.DeviceTokenBody
 import ma.tany.core.model.common.LogoutBody
 import ma.tany.core.model.common.NotificationReadResponse
 import ma.tany.core.model.common.NotificationsPage
@@ -30,6 +33,7 @@ import ma.tany.core.model.common.OtpVerifyBody
 import ma.tany.core.model.common.UnreadCount
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -38,8 +42,8 @@ import retrofit2.http.Query
  * TANY Collect endpoints — `/api/mobile/v1` + `/collect/…` (API_CONTRACT_V1 § 1a, 1c).
  * Every `bookings/{id}` route carries `collectPointId`; the server re-checks the merchant's scope
  * (`wrong_collect_point` / `forbidden`). No mutation is ever retried automatically.
- * NOT exposed on purpose: `POST/DELETE collect/devices` (APNs-only — Android push pending backend gap A-1),
- * multipart `bookings/{id}/photos` (arrives with the pickup slice), settlement statement/collection details
+ * Sessions are `COLLECT_APP` sessions (MERCHANT or ADMIN only): never valid for TANY Client nor for the backoffice.
+ * NOT exposed yet: multipart `bookings/{id}/photos` (arrives with the pickup slice), settlement statement/collection details
  * and QR/confirm/dispute (settlement slice, gap A-4).
  */
 interface TanyCollectApi {
@@ -111,8 +115,9 @@ interface TanyCollectApi {
     @POST("collect/bookings/{id}/return")
     suspend fun declareReturn(@Path("id") id: String, @Body body: ReturnBody): MerchantBookingResponse
 
+    /** « J'ai remis X » — `expectedAmount` = amount shown; re-evaluated server-side ⇒ 409 `deposit_amount_changed`. */
     @POST("collect/bookings/{id}/deposit-refund")
-    suspend fun depositRefund(@Path("id") id: String, @Body body: CollectPointBody): MerchantBookingResponse
+    suspend fun depositRefund(@Path("id") id: String, @Body body: DepositRefundBody): MerchantBookingResponse
 
     @POST("collect/bookings/{id}/incidents")
     suspend fun reportIncident(@Path("id") id: String, @Body body: IncidentBody): MerchantBookingResponse
@@ -123,6 +128,13 @@ interface TanyCollectApi {
 
     @POST("collect/bookings/{id}/events")
     suspend fun reportEvent(@Path("id") id: String, @Body body: MerchantEventBody): OkResponse
+
+    // — Push (FCM, `platform:"android"` ⇒ stored as android-collect) —
+    @POST("collect/devices")
+    suspend fun registerDevice(@Body body: DeviceRegistrationBody): OkResponse
+
+    @HTTP(method = "DELETE", path = "collect/devices", hasBody = true)
+    suspend fun unregisterDevice(@Body body: DeviceTokenBody): OkResponse
 
     // — Notifications of the active point —
     @GET("collect/notifications")

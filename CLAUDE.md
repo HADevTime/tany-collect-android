@@ -23,7 +23,11 @@ Native Android app for TANY Collect merchants. Read `README.md` first (architect
 - Errors: `ApiError` with canonical `ApiErrorCode` (no translation in the network layer).
 - Never auto-retry a non-idempotent POST (bookings, confirmations, deposit, QR). After a network error, re-read.
 - Tokens: only via `SessionStore` (Keystore-encrypted); never log headers/bodies; logging is DEV-only BASIC.
-- No Admin authentication in this app. No FCM endpoint until backend gap A-1 is resolved.
+- No Admin authentication in this app; a mobile session NEVER implies backoffice access (backend session contexts).
+- Push: FCM via the backend device endpoint (`platform:"android"`); the app only provides the token — never
+  compute notification content locally. Do not reimplement backend features (deletion, push, OTP limits) client-side.
+- OTP: always read `codeLength` (6 today); handle 429 `otp_too_many_attempts` (+ `retryAfterSeconds`) and 503
+  `otp_delivery_failed`.
 
 ## UI
 - Colors/typography/spacing only from `TanyTheme` — no hex in feature code. Light / Dark / System.

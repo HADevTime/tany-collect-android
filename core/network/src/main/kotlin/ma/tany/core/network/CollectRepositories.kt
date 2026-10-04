@@ -5,16 +5,24 @@ import ma.tany.core.model.collect.ActivityResponse
 import ma.tany.core.model.collect.AssetsResponse
 import ma.tany.core.model.collect.CollectAuthResponse
 import ma.tany.core.model.collect.CollectMe
+import ma.tany.core.model.collect.CollectRole
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.TodayResponse
+import ma.tany.core.model.common.ApiErrorCode
 import ma.tany.core.model.common.LogoutBody
 import ma.tany.core.model.common.OtpRequestBody
 import ma.tany.core.model.common.OtpRequestResponse
 import ma.tany.core.model.common.OtpVerifyBody
 
 /**
- * Merchant authentication: shared OTP request + Collect verify (MERCHANT or ADMIN only — a customer number gets
- * `account_not_allowed`). No profile step on Collect. No Admin email/password login in this app.
+ * Merchant authentication: shared OTP request + Collect verify. Canonical backend policy (auth hardening):
+ * - the token is a `COLLECT_APP` session: valid ONLY for the `/collect/…` routes — never for TANY Client and NEVER for the
+ *   backoffice (`/admin`, `/agent` require a `BACKOFFICE` email + password session), even for an ADMIN account;
+ * - roles accepted: MERCHANT (attached to an active point) and ADMIN (multi-point); a customer, a collection agent,
+ *   a blocked account or an account without an active point gets `account_not_allowed`;
+ * - no OTP demo code (`devCode`) is ever returned for ADMIN / agent numbers, even in STAGING.
+ * The app mirrors this defensively: a session is only stored for MERCHANT / ADMIN, and nothing in the app
+ * links to, opens or implies backoffice access. No profile step, no email/password login in this app.
  */
 interface CollectAuthRepository {
     suspend fun requestOtp(phone: String): ApiResult<OtpRequestResponse>
@@ -34,7 +42,12 @@ class DefaultCollectAuthRepository(
 
     override suspend fun verifyOtp(phone: String, code: String): ApiResult<CollectAuthResponse> = apiCall {
         val response = api.verifyOtp(OtpVerifyBody(phone.trim(), code.trim()))
+        if (response.user.role != CollectRole.MERCHANT && response.user.role != CollectRole.ADMIN) {
+            // Never expected (the backend refuses other roles); never keep a token for an unknown role.
+            throw ApiException(ApiError.Http(403, ApiErrorCode.ACCOUNT_NOT_ALLOWED, "account_not_allowed", null))
+        }
         session.signIn(StoredSession(response.token, response.user.id))
+        push.register()
         response
     }
 

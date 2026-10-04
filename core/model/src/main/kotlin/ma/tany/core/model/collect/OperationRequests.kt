@@ -44,7 +44,7 @@ data class ReturnIncident(val type: IncidentType, val description: String? = nul
 data class ReturnBody(
     val collectPointId: String,
     val condition: AssetCondition,
-    val missingAccessories: List<String> = emptyList(),
+    @kotlinx.serialization.EncodeDefault val missingAccessories: List<String> = emptyList(),
     val incident: ReturnIncident? = null,
 )
 
@@ -54,6 +54,14 @@ data class IncidentBody(val collectPointId: String, val type: IncidentType, val 
 /** Body for routes that only need the point (`deposit-refund`, `nudge`, notifications read). */
 @Serializable
 data class CollectPointBody(val collectPointId: String)
+
+/**
+ * `POST bookings/{id}/deposit-refund` — [expectedAmount] (additive) is the amount displayed to the merchant; if the
+ * deposit decision was re-evaluated meanwhile the backend answers 409 `deposit_amount_changed` + `currentAmount`
+ * and the screen must reload the booking (never hand back a stale amount).
+ */
+@Serializable
+data class DepositRefundBody(val collectPointId: String, val expectedAmount: MoneyAmount? = null)
 
 @Serializable
 data class NudgeResponse(val nudged: Boolean, val retryAfterSeconds: Int = 0, val booking: MerchantBookingDetail? = null)

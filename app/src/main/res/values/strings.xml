@@ -101,6 +101,9 @@
     <string name="error_invalid_request">Vérifiez les informations saisies.</string>
     <string name="error_not_found">Élément introuvable.</string>
     <string name="error_server">Le service est momentanément indisponible.</string>
+    <string name="error_qr_rate_limited">Trop de codes erronés. Scannez le QR du client ou réessayez dans quelques minutes.</string>
+    <string name="error_deposit_amount_changed">Le montant de la caution a été mis à jour par TANY. Rechargez la réservation avant de remettre l’argent.</string>
+    <string name="error_otp_delivery_failed">Le code n’a pas pu être envoyé. Réessayez dans quelques instants.</string>
     <string name="error_update_required">Une mise à jour de l’application est nécessaire.</string>
     <string name="error_forbidden">Action non autorisée pour ce TANY Collect.</string>
     <string name="error_wrong_collect_point">Cette réservation appartient à un autre TANY Collect.</string>

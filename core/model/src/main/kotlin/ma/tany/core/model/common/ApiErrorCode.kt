@@ -50,6 +50,12 @@ enum class ApiErrorCode(override val wire: String) : WireEnum {
     INVALID_INPUT("invalid_input"),
     NOTHING_DUE("nothing_due"),
     CONFIRMATION_STALE("confirmation_stale"),
+    // Pre-prod hardening additions (API_CONTRACT_V1 § 6).
+    OTP_DELIVERY_FAILED("otp_delivery_failed"),
+    ACCOUNT_DELETION_BLOCKED("account_deletion_blocked"),
+    IDENTITY_CONSENT_REQUIRED("identity_consent_required"),
+    QR_RATE_LIMITED("qr_rate_limited"),
+    DEPOSIT_AMOUNT_CHANGED("deposit_amount_changed"),
     UNKNOWN("");
 
     object Serializer : WireEnumSerializer<ApiErrorCode>("ApiErrorCode", entries, UNKNOWN)

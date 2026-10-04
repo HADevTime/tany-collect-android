@@ -1,0 +1,293 @@
+{
+  "booking": {
+    "id": "3867eba0-8152-4f59-8843-36ef948c3df2",
+    "reference": "TNY-6528",
+    "kind": "RETURN",
+    "phase": "deposit_awaiting_customer",
+    "scheduledAt": "2026-10-04T22:22:32.282Z",
+    "windowEnd": null,
+    "returnDeadline": "2026-10-04T22:22:32.282Z",
+    "usageDate": "2026-10-04",
+    "usageEndDate": "2026-10-04",
+    "dayCount": 1,
+    "returnWindowStart": "2026-10-04T20:22:32.282Z",
+    "dailyPrice": 150,
+    "usagePeriod": {
+      "startDate": "2026-10-04",
+      "endDate": "2026-10-04",
+      "dayCount": 1
+    },
+    "pricing": {
+      "dailyPrice": 150,
+      "dayCount": 1,
+      "rentalTotal": 150,
+      "deposit": 300,
+      "currency": "MAD",
+      "totalDueAtPickup": 450
+    },
+    "pickupWindowStart": "2026-10-04T14:22:32.282Z",
+    "pickupWindowEnd": "2026-10-04T16:22:32.282Z",
+    "customer": {
+      "shortName": "Amina T.",
+      "phoneLast4": "0001",
+      "trusted": null,
+      "firstName": "Amina",
+      "identity": {
+        "verified": false,
+        "label": null,
+        "profilePhotoUrl": null
+      }
+    },
+    "product": {
+      "id": "prod-nettoyeur-pro-canapes",
+      "name": "Nettoyeur Pro des canapés",
+      "image": "/images/cleaner.png",
+      "catalogImageUrl": null,
+      "includedAccessories": [
+        "Flacon de détergent",
+        "Buse tissu",
+        "Buse petite surface"
+      ]
+    },
+    "assetCode": "NPC001",
+    "rentalAmount": 150,
+    "depositAmount": 300,
+    "depositRefundAmount": 210,
+    "depositAction": "NONE",
+    "depositHeadline": "210 DH remis — confirmation client attendue",
+    "depositState": "REFUND_AWAITING_CUSTOMER",
+    "currency": "MAD",
+    "lateMinutes": null,
+    "nextBookingAt": null,
+    "waitingSince": "2026-10-04T20:22:32.811Z",
+    "waitingMinutes": 0,
+    "customerConfirmationOverdue": false,
+    "updatedAt": "2026-10-04T20:10:32.282Z",
+    "completedAt": null,
+    "status": "RETURNED",
+    "asset": {
+      "id": "asset-NPC001",
+      "code": "NPC001",
+      "status": "AVAILABLE",
+      "condition": "issue_reported",
+      "nextBookingAt": "2026-10-05T22:22:32.139Z",
+      "nextBookingReference": "TNY-1001",
+      "nextBookingWindowEnd": "2026-10-06T00:22:32.139Z",
+      "nextBookingUsagePeriod": {
+        "startDate": "2026-10-06",
+        "endDate": "2026-10-06",
+        "dayCount": 1
+      },
+      "turnaroundMinutes": 90
+    },
+    "rental": {
+      "startDate": "2026-10-04",
+      "endDate": "2026-10-04",
+      "dayCount": 1,
+      "dailyPrice": 150,
+      "total": 150,
+      "currency": "MAD"
+    },
+    "pickup": {
+      "windowStart": "2026-10-04T14:22:32.282Z",
+      "windowEnd": "2026-10-04T16:22:32.282Z",
+      "startedAt": "2026-10-04T14:42:32.282Z",
+      "completionDeadline": null,
+      "clientVerifiedAt": "2026-10-04T14:42:32.282Z",
+      "assetVerifiedAt": "2026-10-04T14:42:32.282Z",
+      "photoCount": 1,
+      "condition": "good",
+      "merchantConfirmedAt": "2026-10-04T14:42:32.282Z",
+      "customerConfirmedAt": "2026-10-04T14:44:32.282Z",
+      "collectedAt": "2026-10-04T14:44:32.282Z"
+    },
+    "return": {
+      "deadline": "2026-10-04T22:22:32.282Z",
+      "windowStart": "2026-10-04T20:22:32.282Z",
+      "clientVerifiedAt": "2026-10-04T20:07:32.282Z",
+      "assetVerifiedAt": "2026-10-04T20:07:32.282Z",
+      "photoCount": 1,
+      "condition": "issue_reported",
+      "incidentType": "DAMAGED",
+      "merchantConfirmedAt": "2026-10-04T20:07:32.282Z",
+      "customerConfirmedAt": "2026-10-04T20:10:32.282Z",
+      "returnedAt": "2026-10-04T20:10:32.282Z"
+    },
+    "payment": {
+      "method": "CASH_AT_COLLECT_POINT",
+      "status": "PAID",
+      "paidAt": "2026-10-04T14:42:32.282Z",
+      "rentalAmount": 150,
+      "depositAmount": 300,
+      "totalDueAtPickup": 450
+    },
+    "deposit": {
+      "status": "HELD",
+      "amount": 300,
+      "expectedRefundAmount": 210,
+      "merchantRefundConfirmedAt": "2026-10-04T20:22:32.811Z",
+      "customerRefundConfirmedAt": null,
+      "customerPaidConfirmedAt": "2026-10-04T14:44:32.282Z",
+      "state": "REFUND_AWAITING_CUSTOMER",
+      "merchantAction": "NONE",
+      "headline": "210 DH remis — confirmation client attendue",
+      "heldAmount": 300,
+      "toRefundAmount": 210,
+      "refundedAmount": 0,
+      "retainedAmount": 90,
+      "currency": "MAD",
+      "refundPickup": null
+    },
+    "incidents": [
+      {
+        "id": "77eb3756-f80f-48a7-b71c-800be2073835",
+        "type": "DAMAGED",
+        "description": "Scénario de test — dommage constaté au retour.",
+        "status": "RESOLVED",
+        "createdAt": "2026-10-04T20:10:32.282Z",
+        "createdByMe": false,
+        "resolvedAt": "2026-10-04T20:22:32.448Z",
+        "depositDecision": "PARTIAL_REFUND"
+      }
+    ],
+    "photos": [
+      {
+        "id": "748b08f4-ac5f-4e5f-b74c-d779582cc630",
+        "type": "PICKUP",
+        "condition": "good",
+        "url": "/api/photos/748b08f4-ac5f-4e5f-b74c-d779582cc630/1791148980/42UCu9-4G6cFH9wSvp0LSlAsawhAxh7psMQfdEW1u_U",
+        "createdAt": "2026-10-04T20:22:32.376Z"
+      },
+      {
+        "id": "aa3a7279-fea5-4b98-8ab2-cf32545c6aa3",
+        "type": "RETURN",
+        "condition": "issue_reported",
+        "url": "/api/photos/aa3a7279-fea5-4b98-8ab2-cf32545c6aa3/1791148980/JYTKF9_ZDqKP_KTeiTKMXRFfNp-pb9sqviAMnCGg2E0",
+        "createdAt": "2026-10-04T20:22:32.427Z"
+      }
+    ],
+    "history": [
+      {
+        "id": "9acdb366-ccb9-4dde-baf1-137a3f557381",
+        "type": "BOOKING_CREATED",
+        "label": "Réservation créée",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-04T20:22:32.305Z"
+      },
+      {
+        "id": "5da500b9-1a01-4d3a-bf18-c9225cd55004",
+        "type": "PAYMENT_CONFIRMED",
+        "label": "Paiement et caution reçus",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-04T20:22:32.328Z"
+      },
+      {
+        "id": "b4725de4-80e9-4f93-9f2f-c803b3ceab6f",
+        "type": "PICKUP_QR_VERIFIED",
+        "label": "QR client vérifié (collecte)",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-04T20:22:32.341Z"
+      },
+      {
+        "id": "e4a98426-9c86-43e2-aace-5a9476c5c8b0",
+        "type": "PICKUP_ASSET_VERIFIED",
+        "label": "Objet vérifié (collecte)",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-04T20:22:32.346Z"
+      },
+      {
+        "id": "7ab79388-7c07-46f9-bc3e-f9759c3e3383",
+        "type": "PICKUP_CONFIRMED_MERCHANT",
+        "label": "Remise confirmée par le commerçant",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-04T20:22:32.387Z"
+      },
+      {
+        "id": "b9b693d5-bdf9-4b9c-8f6c-a52f157f15fc",
+        "type": "PICKUP_CONFIRMED_CUSTOMER",
+        "label": "Réception confirmée par le client",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-04T20:22:32.391Z"
+      },
+      {
+        "id": "dca0c5c4-4d39-4ae2-94f5-13b53df725d6",
+        "type": "ASSET_COLLECTED",
+        "label": "Objet remis au client",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-04T20:22:32.405Z"
+      },
+      {
+        "id": "48d2703c-5fb2-4263-998d-05a1a6282e98",
+        "type": "RETURN_QR_VERIFIED",
+        "label": "QR client vérifié (retour)",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-04T20:22:32.413Z"
+      },
+      {
+        "id": "428055db-3481-480a-83fc-70772c0f299c",
+        "type": "RETURN_ASSET_VERIFIED",
+        "label": "Objet vérifié (retour)",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-04T20:22:32.417Z"
+      },
+      {
+        "id": "15eb46ef-6e1e-41eb-854d-c02fcc8969de",
+        "type": "RETURN_CONFIRMED_MERCHANT",
+        "label": "Réception de l'objet constatée",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-04T20:22:32.432Z"
+      },
+      {
+        "id": "f9b569c1-a1e5-467b-9f64-d804d0b01393",
+        "type": "RETURN_CONFIRMED_CUSTOMER",
+        "label": "Retour confirmé par le client",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-04T20:22:32.436Z"
+      },
+      {
+        "id": "1ec6e0c9-f2ee-4ced-b857-c97a84aa8aff",
+        "type": "ASSET_RETURNED",
+        "label": "Objet retourné",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-04T20:22:32.442Z"
+      },
+      {
+        "id": "0bad5b75-adc1-4835-aef0-6ae8e03e316d",
+        "type": "DEPOSIT_DECISION_RECORDED",
+        "label": "Décision TANY sur la caution",
+        "actor": "TANY",
+        "actorRole": "TANY",
+        "at": "2026-10-04T20:22:32.462Z"
+      },
+      {
+        "id": "0c815fa3-fd43-4a45-9b08-94283cb29504",
+        "type": "DEPOSIT_REFUND_QR_VERIFIED",
+        "label": "QR caution du client vérifié",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-04T20:22:32.777Z"
+      },
+      {
+        "id": "189d67ca-21ad-4dfa-9cce-37f843233eca",
+        "type": "DEPOSIT_REFUND_MERCHANT",
+        "label": "Caution remise par le commerçant",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-04T20:22:32.829Z"
+      }
+    ],
+    "requiresTanyIntervention": false
+  }
+}

@@ -115,4 +115,25 @@ class PickupOperationsTest {
         // missingAccessories is always sent (contract), even empty.
         assertEquals("""{"collectPointId":"cp1","condition":"good","missingAccessories":[]}""", server.takeRequest().body.readUtf8())
     }
+
+    @Test
+    fun depositRefundSendsTheShownAmountAndTypesRefusals() = runTest(UnconfinedTestDispatcher()) {
+        val repo = repo(TestScope(testScheduler))
+        server.enqueue(json(409, fixture("err_deposit_amount_changed")))
+        val changed = repo.depositRefund("bk1", "cp1", MoneyAmount.ofMajor(1))
+        val request = server.takeRequest()
+        assertEquals("/api/mobile/v1/collect/bookings/bk1/deposit-refund", request.path)
+        assertEquals("""{"collectPointId":"cp1","expectedAmount":1}""", request.body.readUtf8())
+        assertEquals(
+            CollectOperationError.DepositAmountChanged(MoneyAmount.ofMajor(210)),
+            CollectOperationError.from((changed as ApiResult.Failure).error),
+        )
+
+        server.enqueue(json(409, fixture("err_deposit_refund_qr_required")))
+        val qr = repo.depositRefund("bk1", "cp1", MoneyAmount.ofMajor(210))
+        assertEquals(CollectOperationError.DepositRefundQrRequired, CollectOperationError.from((qr as ApiResult.Failure).error))
+
+        server.enqueue(json(200, fixture("deposit_refund_handed_back")))
+        assertTrue(repo.depositRefund("bk1", "cp1", MoneyAmount.ofMajor(210)) is ApiResult.Success)
+    }
 }

@@ -190,4 +190,18 @@
     <string name="return_statement_cta">Je confirme la réception</string>
     <string name="return_step_customer_confirms">Retour confirmé par le client</string>
     <string name="return_waiting_customer">Retour constaté : en attente de la confirmation du client dans TANY.</string>
+    <string name="deposit_title">Caution à rendre</string>
+    <string name="deposit_partial">Remboursement partiel décidé par TANY.</string>
+    <string name="deposit_step_qr">QR caution du client vérifié</string>
+    <string name="deposit_scan_qr">Scanner le QR caution</string>
+    <string name="deposit_step_hand_back">Caution remise au client</string>
+    <string name="deposit_hand_back_action">J’ai remis la caution</string>
+    <string name="deposit_step_customer">Le client confirme le montant reçu</string>
+    <string name="deposit_waiting_customer">Caution remise : le client doit confirmer le montant reçu dans TANY.</string>
+    <string name="deposit_confirm_title">Rendre la caution</string>
+    <string name="deposit_confirm_message">Remettez exactement ce montant en espèces au client. Il confirmera ensuite le montant reçu dans TANY.</string>
+    <string name="deposit_confirm_cta">J’ai remis ce montant</string>
+    <string name="op_deposit_amount_changed">TANY a mis à jour le montant à remettre : %1$s. Vérifiez-le avant de remettre l’argent.</string>
+    <string name="op_deposit_amount_changed_plain">TANY a mis à jour le montant à remettre. Vérifiez-le avant de remettre l’argent.</string>
+    <string name="op_deposit_qr_required">Scannez d’abord le QR caution présenté par le client.</string>
 </resources>

@@ -189,4 +189,18 @@
     <string name="return_statement_cta">أؤكّد الاستلام</string>
     <string name="return_step_customer_confirms">أكّد الزبون الإرجاع</string>
     <string name="return_waiting_customer">تم تسجيل الإرجاع: في انتظار تأكيد الزبون في TANY.</string>
+    <string name="deposit_title">مبلغ الضمان الواجب ردّه</string>
+    <string name="deposit_partial">استرجاع جزئي قرّرته TANY.</string>
+    <string name="deposit_step_qr">تم التحقق من رمز QR الخاص بمبلغ الضمان</string>
+    <string name="deposit_scan_qr">مسح رمز QR الخاص بمبلغ الضمان</string>
+    <string name="deposit_step_hand_back">تم ردّ مبلغ الضمان إلى الزبون</string>
+    <string name="deposit_hand_back_action">لقد رددت مبلغ الضمان</string>
+    <string name="deposit_step_customer">يؤكّد الزبون المبلغ المستلم</string>
+    <string name="deposit_waiting_customer">تم ردّ مبلغ الضمان: يجب على الزبون تأكيد المبلغ المستلم في TANY.</string>
+    <string name="deposit_confirm_title">ردّ مبلغ الضمان</string>
+    <string name="deposit_confirm_message">سلّم هذا المبلغ بالضبط نقدًا إلى الزبون. سيؤكّد بعد ذلك المبلغ المستلم في TANY.</string>
+    <string name="deposit_confirm_cta">لقد سلّمت هذا المبلغ</string>
+    <string name="op_deposit_amount_changed">قامت TANY بتحديث المبلغ الواجب ردّه: %1$s. تحقّق منه قبل تسليم المال.</string>
+    <string name="op_deposit_amount_changed_plain">قامت TANY بتحديث المبلغ الواجب ردّه. تحقّق منه قبل تسليم المال.</string>
+    <string name="op_deposit_qr_required">امسح أولًا رمز QR الخاص بمبلغ الضمان الذي يعرضه الزبون.</string>
 </resources>

@@ -185,4 +185,18 @@
     <string name="return_statement_cta">I confirm receipt</string>
     <string name="return_step_customer_confirms">Return confirmed by the customer</string>
     <string name="return_waiting_customer">Return recorded: waiting for the customer’s confirmation in TANY.</string>
+    <string name="deposit_title">Deposit to hand back</string>
+    <string name="deposit_partial">Partial refund decided by TANY.</string>
+    <string name="deposit_step_qr">Customer’s deposit QR checked</string>
+    <string name="deposit_scan_qr">Scan the deposit QR</string>
+    <string name="deposit_step_hand_back">Deposit handed back</string>
+    <string name="deposit_hand_back_action">I handed back the deposit</string>
+    <string name="deposit_step_customer">Customer confirms the amount received</string>
+    <string name="deposit_waiting_customer">Deposit handed back: the customer must confirm the amount received in TANY.</string>
+    <string name="deposit_confirm_title">Hand back the deposit</string>
+    <string name="deposit_confirm_message">Hand this exact amount back to the customer in cash. They will then confirm the amount received in TANY.</string>
+    <string name="deposit_confirm_cta">I handed back this amount</string>
+    <string name="op_deposit_amount_changed">TANY updated the amount to hand back: %1$s. Check it before handing back the cash.</string>
+    <string name="op_deposit_amount_changed_plain">TANY updated the amount to hand back. Check it before handing back the cash.</string>
+    <string name="op_deposit_qr_required">First scan the deposit QR shown by the customer.</string>
 </resources>

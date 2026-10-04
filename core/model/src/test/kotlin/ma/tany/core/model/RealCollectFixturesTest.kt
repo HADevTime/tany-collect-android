@@ -72,6 +72,18 @@ class RealCollectFixturesTest {
     }
 
     @Test
+    fun deferredDepositRefund() {
+        val before = Fixtures.decode<MerchantBookingResponse>(real("deposit_refund_booking")).booking
+        val deposit = requireNotNull(before.deposit)
+        assertEquals(ma.tany.core.model.collect.MerchantDepositAction.HAND_BACK, deposit.merchantAction)
+        assertEquals(ma.tany.core.model.common.MoneyAmount.ofMajor(210), deposit.toRefundAmount)
+        assertTrue(deposit.refundPickup!!.qrRequired && deposit.refundPickup!!.partial)
+        val after = Fixtures.decode<MerchantBookingResponse>(real("deposit_refund_handed_back")).booking.deposit!!
+        assertNotNull(after.merchantRefundConfirmedAt)
+        assertEquals(ma.tany.core.model.collect.MerchantDepositAction.NONE, after.merchantAction)
+    }
+
+    @Test
     fun trustedIsNeverModeledForMerchants() {
         // The backend may send `customer.trusted` (null when the cancellation module is ON, an object when OFF);
         // the Android model deliberately has no such property, so it can never be displayed.

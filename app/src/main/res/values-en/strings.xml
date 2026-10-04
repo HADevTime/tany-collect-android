@@ -100,6 +100,9 @@
     <string name="error_invalid_request">Please check the information entered.</string>
     <string name="error_not_found">Not found.</string>
     <string name="error_server">The service is temporarily unavailable.</string>
+    <string name="error_qr_rate_limited">Too many wrong codes. Scan the customer’s QR code or try again in a few minutes.</string>
+    <string name="error_deposit_amount_changed">The deposit amount was updated by TANY. Reload the booking before handing back any cash.</string>
+    <string name="error_otp_delivery_failed">The code could not be sent. Please try again in a moment.</string>
     <string name="error_update_required">An app update is required.</string>
     <string name="error_forbidden">Action not allowed for this TANY Collect point.</string>
     <string name="error_wrong_collect_point">This booking belongs to another TANY Collect point.</string>

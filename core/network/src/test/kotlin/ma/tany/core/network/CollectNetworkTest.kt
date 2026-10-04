@@ -101,6 +101,45 @@ class CollectNetworkTest {
     }
 
     @Test
+    fun anUnexpectedRoleNeverGetsAStoredSession() = runTest(UnconfinedTestDispatcher()) {
+        val store = InMemorySessionStore()
+        val stack = TestStack(server, TestScope(testScheduler), store)
+        server.enqueue(
+            json(
+                200,
+                """{"status":"authenticated","token":"tok_x","user":{"id":"usr_x","firstName":"A","lastName":"B","phone":"+212600000009",
+                |"role":"COLLECTION_AGENT"},"collectPoints":[]}""".trimMargin(),
+            ),
+        )
+        val error = DefaultCollectAuthRepository(stack.api, stack.session, NoopPushTokenRegistrar).verifyOtp("0600000009", "123456").errorOrNull()
+        assertEquals(ApiErrorCode.ACCOUNT_NOT_ALLOWED, (error as ApiError.Http).code)
+        assertNull(store.stored)
+        assertNull(stack.session.currentToken())
+    }
+
+    @Test
+    fun depositRefundSendsTheDisplayedAmountAndMapsAmountChanged() = runTest(UnconfinedTestDispatcher()) {
+        val stack = TestStack(server, TestScope(testScheduler))
+        server.enqueue(json(409, """{"error":{"code":"deposit_amount_changed","message":"…","currentAmount":250}}"""))
+        val error = apiCall {
+            stack.api.depositRefund("bk_1", ma.tany.core.model.collect.DepositRefundBody("cp-maarif", MoneyAmount.ofMajor(300)))
+        }.errorOrNull() as ApiError.Http
+        assertEquals(ApiErrorCode.DEPOSIT_AMOUNT_CHANGED, error.code)
+        assertEquals(250, error.detailInt("currentAmount"))
+        assertEquals("""{"collectPointId":"cp-maarif","expectedAmount":300}""", server.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun androidDeviceIsRegisteredOnTheCollectRoute() = runTest(UnconfinedTestDispatcher()) {
+        val stack = TestStack(server, TestScope(testScheduler))
+        server.enqueue(json(200, """{"ok":true}"""))
+        apiCall { stack.api.registerDevice(ma.tany.core.model.common.DeviceRegistrationBody("fcm:token_ABC-123_xyz_0123456789abcdef")) }
+        val request = server.takeRequest()
+        assertEquals("/api/mobile/v1/collect/devices", request.path)
+        assertEquals("""{"token":"fcm:token_ABC-123_xyz_0123456789abcdef","platform":"android"}""", request.body.readUtf8())
+    }
+
+    @Test
     fun scanRequiresExactlyOneCode() {
         assertThrows(IllegalArgumentException::class.java) { ScanBody(collectPointId = "cp") }
         assertThrows(IllegalArgumentException::class.java) { ScanBody(collectPointId = "cp", qrPayload = "a.b", shortCode = "123456") }

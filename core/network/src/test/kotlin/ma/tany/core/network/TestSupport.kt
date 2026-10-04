@@ -22,3 +22,12 @@ class TestStack(server: MockWebServer, scope: CoroutineScope, store: SessionStor
     val client = TanyHttp.okHttpClient(endpoint, session, session, { language }, "TANY-Android/test")
     val api: TanyCollectApi = TanyHttp.retrofit(endpoint, client).create(TanyCollectApi::class.java)
 }
+
+/** No push in these tests. */
+object NoopPushTokenRegistrar : PushTokenRegistrar {
+    override val isSupported: Boolean = false
+
+    override suspend fun register() = Unit
+
+    override suspend fun unregister() = Unit
+}

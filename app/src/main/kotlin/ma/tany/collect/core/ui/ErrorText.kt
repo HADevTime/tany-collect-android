@@ -35,6 +35,9 @@ fun ApiError.messageRes(): Int = when (this) {
         ApiErrorCode.QR_STALE -> R.string.error_qr_stale
         ApiErrorCode.ASSET_MISMATCH -> R.string.error_asset_mismatch
         ApiErrorCode.PICKUP_TOO_EARLY -> R.string.error_pickup_too_early
+        ApiErrorCode.QR_RATE_LIMITED -> R.string.error_qr_rate_limited
+        ApiErrorCode.DEPOSIT_AMOUNT_CHANGED -> R.string.error_deposit_amount_changed
+        ApiErrorCode.OTP_DELIVERY_FAILED -> R.string.error_otp_delivery_failed
         ApiErrorCode.SERVER_ERROR -> R.string.error_server
         else -> R.string.error_generic
     }

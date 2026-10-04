@@ -19,7 +19,8 @@ import ma.tany.core.network.CollectAuthRepository
 import ma.tany.core.network.CollectRepository
 import ma.tany.core.network.DefaultCollectAuthRepository
 import ma.tany.core.network.DefaultCollectRepository
-import ma.tany.core.network.NoopPushTokenRegistrar
+import ma.tany.core.network.BackendPushTokenRegistrar
+import ma.tany.core.network.NoPushTokenSource
 import ma.tany.core.network.PushTokenRegistrar
 import ma.tany.core.network.SessionManager
 import ma.tany.core.network.TanyCollectApi
@@ -55,10 +56,17 @@ object AppModule {
         return TanyHttp.retrofit(endpoint, client).create(TanyCollectApi::class.java)
     }
 
-    /** Android push is pending backend gap A-1 (APNs-only today). */
+    /**
+     * FCM registration through `POST/DELETE /collect/devices` (`platform:"android"`, backend-supported). The token
+     * source becomes Firebase Messaging in the notifications slice (needs the per-environment Firebase config).
+     */
     @Provides
     @Singleton
-    fun pushTokenRegistrar(): PushTokenRegistrar = NoopPushTokenRegistrar
+    fun pushTokenRegistrar(api: TanyCollectApi): PushTokenRegistrar = BackendPushTokenRegistrar(
+        source = NoPushTokenSource,
+        registerCall = { api.registerDevice(it) },
+        unregisterCall = { api.unregisterDevice(it) },
+    )
 
     @Provides
     @Singleton

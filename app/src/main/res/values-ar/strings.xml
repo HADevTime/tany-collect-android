@@ -100,6 +100,9 @@
     <string name="error_invalid_request">يُرجى التحقق من المعلومات المُدخلة.</string>
     <string name="error_not_found">العنصر غير موجود.</string>
     <string name="error_server">الخدمة غير متاحة مؤقتًا.</string>
+    <string name="error_qr_rate_limited">رموز خاطئة كثيرة. امسح رمز QR الخاص بالزبون أو أعد المحاولة بعد بضع دقائق.</string>
+    <string name="error_deposit_amount_changed">قامت TANY بتحديث مبلغ الضمان. أعد تحميل الحجز قبل ردّ أي مبلغ.</string>
+    <string name="error_otp_delivery_failed">تعذّر إرسال الرمز. يُرجى إعادة المحاولة بعد قليل.</string>
     <string name="error_update_required">يلزم تحديث التطبيق.</string>
     <string name="error_forbidden">هذا الإجراء غير مسموح به لهذه النقطة.</string>
     <string name="error_wrong_collect_point">هذا الحجز تابع لنقطة TANY Collect أخرى.</string>

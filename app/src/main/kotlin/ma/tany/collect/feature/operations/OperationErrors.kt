@@ -24,10 +24,15 @@ fun CollectOperationError.text(): String = when (this) {
             else -> R.string.op_qr_unknown
         },
     )
-    is CollectOperationError.AssetMismatch -> if (expected != null && scanned != null) {
-        stringResource(R.string.op_asset_mismatch_codes, ltrIsolated(scanned), ltrIsolated(expected))
-    } else {
-        stringResource(R.string.op_asset_mismatch)
+    is CollectOperationError.AssetMismatch -> {
+        // Local copies: properties from another module are not smart-castable.
+        val expectedCode = expected
+        val scannedCode = scanned
+        if (expectedCode != null && scannedCode != null) {
+            stringResource(R.string.op_asset_mismatch_codes, ltrIsolated(scannedCode), ltrIsolated(expectedCode))
+        } else {
+            stringResource(R.string.op_asset_mismatch)
+        }
     }
     CollectOperationError.WrongPoint -> stringResource(R.string.op_wrong_point)
     is CollectOperationError.TooEarly -> {

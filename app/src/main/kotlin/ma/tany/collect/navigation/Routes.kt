@@ -25,6 +25,14 @@ import kotlinx.serialization.Serializable
  */
 @Serializable data class OperationScanRoute(val bookingId: String, val target: String, val purpose: String)
 
+@Serializable data object RevenueRoute
+
+@Serializable data object SettlementRoute
+
+@Serializable data object NotificationsRoute
+
+@Serializable data class AssetRoute(val assetId: String)
+
 @Serializable data object ShowcaseRoute
 
 @Serializable data object AuthPhoneRoute
@@ -38,7 +46,7 @@ object DeepLinks {
     const val ACTIVITY = "$SCHEME://activity"
     const val BOOKING = "$SCHEME://booking/{bookingId}"
     const val RETURN = "$SCHEME://return/{bookingId}"
-    /** Revenue / settlement screens arrive with their slices; until then the links open Compte. */
     const val REVENUE = "$SCHEME://revenue"
     const val SETTLEMENT = "$SCHEME://revenue/settlement"
+    const val NOTIFICATIONS = "$SCHEME://notifications"
 }

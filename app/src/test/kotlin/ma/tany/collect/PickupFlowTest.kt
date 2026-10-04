@@ -74,6 +74,9 @@ class PickupFlowTest {
         }
 
         override suspend fun assets(pointId: String): ApiResult<AssetsResponse> = ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun asset(pointId: String, assetId: String): ApiResult<ma.tany.core.model.collect.AssetDetail> =
+            ApiResult.Failure(ApiError.Unauthorized)
     }
 
     private class FakeOps : CollectOperationsRepository {

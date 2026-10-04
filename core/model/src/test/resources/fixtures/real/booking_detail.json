@@ -1,0 +1,150 @@
+{
+ "booking": {
+  "id": "a257e8ed-37ba-469f-9deb-a2a0abf01adc",
+  "reference": "TNY-6183",
+  "kind": "PICKUP",
+  "phase": "pickup_upcoming",
+  "scheduledAt": "2026-10-05T09:00:00.000Z",
+  "windowEnd": "2026-10-05T11:00:00.000Z",
+  "returnDeadline": "2026-10-07T18:00:00.000Z",
+  "usageDate": "2026-10-05",
+  "usageEndDate": "2026-10-07",
+  "dayCount": 3,
+  "returnWindowStart": "2026-10-07T16:00:00.000Z",
+  "dailyPrice": 89,
+  "usagePeriod": {
+   "startDate": "2026-10-05",
+   "endDate": "2026-10-07",
+   "dayCount": 3
+  },
+  "pricing": {
+   "dailyPrice": 89,
+   "dayCount": 3,
+   "rentalTotal": 267,
+   "deposit": 200,
+   "currency": "MAD",
+   "totalDueAtPickup": 467
+  },
+  "pickupWindowStart": "2026-10-05T09:00:00.000Z",
+  "pickupWindowEnd": "2026-10-05T11:00:00.000Z",
+  "customer": {
+   "shortName": "Amina T.",
+   "phoneLast4": "0001",
+   "trusted": null,
+   "firstName": "Amina",
+   "identity": {
+    "verified": false,
+    "label": null,
+    "profilePhotoUrl": null
+   }
+  },
+  "product": {
+   "id": "prod-demarreur-de-voiture",
+   "name": "Démarreur de voiture",
+   "image": "/images/jumpstarter.png",
+   "catalogImageUrl": null,
+   "includedAccessories": [
+    "Câbles de démarrage",
+    "Câble de charge USB"
+   ]
+  },
+  "assetCode": "DDV001",
+  "rentalAmount": 267,
+  "depositAmount": 200,
+  "depositRefundAmount": null,
+  "depositAction": "COLLECT",
+  "depositHeadline": "Caution à recevoir : 200 DH",
+  "depositState": "PENDING",
+  "currency": "MAD",
+  "lateMinutes": null,
+  "nextBookingAt": null,
+  "waitingSince": null,
+  "waitingMinutes": null,
+  "customerConfirmationOverdue": false,
+  "updatedAt": "2026-10-04T03:59:09.455Z",
+  "completedAt": null,
+  "status": "RESERVED",
+  "asset": {
+   "id": "asset-DDV001",
+   "code": "DDV001",
+   "status": "AVAILABLE",
+   "condition": "good",
+   "nextBookingAt": null,
+   "nextBookingReference": null,
+   "nextBookingWindowEnd": null,
+   "nextBookingUsagePeriod": null,
+   "turnaroundMinutes": 90
+  },
+  "rental": {
+   "startDate": "2026-10-05",
+   "endDate": "2026-10-07",
+   "dayCount": 3,
+   "dailyPrice": 89,
+   "total": 267,
+   "currency": "MAD"
+  },
+  "pickup": {
+   "windowStart": "2026-10-05T09:00:00.000Z",
+   "windowEnd": "2026-10-05T11:00:00.000Z",
+   "startedAt": null,
+   "completionDeadline": null,
+   "clientVerifiedAt": null,
+   "assetVerifiedAt": null,
+   "photoCount": 0,
+   "condition": null,
+   "merchantConfirmedAt": null,
+   "customerConfirmedAt": null,
+   "collectedAt": null
+  },
+  "return": {
+   "deadline": "2026-10-07T18:00:00.000Z",
+   "windowStart": "2026-10-07T16:00:00.000Z",
+   "clientVerifiedAt": null,
+   "assetVerifiedAt": null,
+   "photoCount": 0,
+   "condition": null,
+   "incidentType": null,
+   "merchantConfirmedAt": null,
+   "customerConfirmedAt": null,
+   "returnedAt": null
+  },
+  "payment": {
+   "method": "CASH_AT_COLLECT_POINT",
+   "status": "PENDING",
+   "paidAt": null,
+   "rentalAmount": 267,
+   "depositAmount": 200,
+   "totalDueAtPickup": 467
+  },
+  "deposit": {
+   "status": "PENDING",
+   "amount": 200,
+   "expectedRefundAmount": 200,
+   "merchantRefundConfirmedAt": null,
+   "customerRefundConfirmedAt": null,
+   "customerPaidConfirmedAt": null,
+   "state": "PENDING",
+   "merchantAction": "COLLECT",
+   "headline": "Caution à recevoir : 200 DH",
+   "heldAmount": 0,
+   "toRefundAmount": 0,
+   "refundedAmount": 0,
+   "retainedAmount": 0,
+   "currency": "MAD",
+   "refundPickup": null
+  },
+  "incidents": [],
+  "photos": [],
+  "history": [
+   {
+    "id": "25ab0767-6deb-441e-ba37-aa41cb6c019b",
+    "type": "BOOKING_CREATED",
+    "label": "Réservation créée",
+    "actor": "Client",
+    "actorRole": "CUSTOMER",
+    "at": "2026-10-04T03:59:09.455Z"
+   }
+  ],
+  "requiresTanyIntervention": false
+ }
+}

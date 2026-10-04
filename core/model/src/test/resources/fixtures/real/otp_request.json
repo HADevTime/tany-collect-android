@@ -1,0 +1,7 @@
+{
+ "phone": "+212600000002",
+ "codeLength": 4,
+ "expiresInSeconds": 600,
+ "resendAfterSeconds": 30,
+ "devCode": "7682"
+}

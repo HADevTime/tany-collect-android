@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tany_action_retry">إعادة المحاولة</string>
+    <string name="tany_action_close">إغلاق</string>
+    <string name="tany_action_cancel">إلغاء</string>
+    <string name="tany_action_back">رجوع</string>
+    <string name="tany_state_loading">جارٍ التحميل…</string>
+    <string name="tany_error_title">حدث خطأ ما</string>
+    <string name="tany_cd_product_image">صورة الغرض</string>
+    <string name="tany_cd_image_unavailable">الصورة غير متاحة</string>
+</resources>

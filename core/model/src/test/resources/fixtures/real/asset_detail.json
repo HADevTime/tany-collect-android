@@ -1,0 +1,80 @@
+{
+ "asset": {
+  "id": "asset-DDV001",
+  "code": "DDV001",
+  "product": {
+   "id": "prod-demarreur-de-voiture",
+   "name": "Démarreur de voiture",
+   "image": "/images/jumpstarter.png",
+   "catalogImageUrl": null
+  },
+  "status": "AVAILABLE",
+  "statusLabel": "Disponible",
+  "group": "AVAILABLE",
+  "tone": "SUCCESS",
+  "attention": false,
+  "attentionLabel": null,
+  "attentionReason": null,
+  "maintenance": false,
+  "condition": "good",
+  "currentBooking": null,
+  "nextBooking": {
+   "id": "a257e8ed-37ba-469f-9deb-a2a0abf01adc",
+   "reference": "TNY-6183",
+   "status": "RESERVED",
+   "usageDate": "2026-10-05",
+   "usageEndDate": "2026-10-07",
+   "dayCount": 3,
+   "pickupWindowStart": "2026-10-05T09:00:00.000Z",
+   "pickupWindowEnd": "2026-10-05T11:00:00.000Z",
+   "returnWindowStart": "2026-10-07T16:00:00.000Z",
+   "returnDeadline": "2026-10-07T18:00:00.000Z",
+   "usagePeriod": {
+    "startDate": "2026-10-05",
+    "endDate": "2026-10-07",
+    "dayCount": 3
+   },
+   "pricing": {
+    "dailyPrice": 89,
+    "dayCount": 3,
+    "rentalTotal": 267,
+    "deposit": 200,
+    "currency": "MAD",
+    "totalDueAtPickup": 467
+   }
+  },
+  "collectPoint": {
+   "id": "cp-maarif",
+   "name": "TANY Collect Maarif"
+  },
+  "inServiceSince": "2026-10-01T03:59:08.863Z",
+  "completedBookings": 1,
+  "upcomingBookings": 1,
+  "turnaroundMinutes": 90,
+  "incidentsCount": 0,
+  "lastIncidentAt": null,
+  "lifecycle": {
+   "status": "not_configured",
+   "label": "Non configuré",
+   "percentage": null,
+   "estimatedReplacementDate": null,
+   "estimatedRemainingUses": null
+  },
+  "recentBookings": [
+   {
+    "reference": "TNY-1004",
+    "usageDate": "2026-10-02",
+    "usageEndDate": "2026-10-02",
+    "dayCount": 1,
+    "usagePeriod": {
+     "startDate": "2026-10-02",
+     "endDate": "2026-10-02",
+     "dayCount": 1
+    },
+    "status": "COMPLETED",
+    "statusLabel": "Terminée"
+   }
+  ],
+  "serverTime": "2026-10-04T03:59:19.130Z"
+ }
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tany_action_retry">Retry</string>
+    <string name="tany_action_close">Close</string>
+    <string name="tany_action_cancel">Cancel</string>
+    <string name="tany_action_back">Back</string>
+    <string name="tany_state_loading">Loading…</string>
+    <string name="tany_error_title">Something went wrong</string>
+    <string name="tany_cd_product_image">Item photo</string>
+    <string name="tany_cd_image_unavailable">Photo unavailable</string>
+</resources>

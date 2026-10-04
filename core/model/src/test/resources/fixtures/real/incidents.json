@@ -1,0 +1,18 @@
+{
+ "incidents": [
+  {
+   "id": "incident-demo-open",
+   "bookingId": "booking-demo-c",
+   "reference": "TNY-1003",
+   "assetCode": "PSF001",
+   "productName": "Perceuse sans fil",
+   "type": "MISSING_ACCESSORY",
+   "description": "Chargeur manquant constaté à la remise.",
+   "status": "OPEN",
+   "createdAt": "2026-10-03T22:59:08.875Z",
+   "createdByMe": true,
+   "resolvedAt": null,
+   "depositDecision": null
+  }
+ ]
+}

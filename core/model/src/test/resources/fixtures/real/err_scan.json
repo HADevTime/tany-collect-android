@@ -1,0 +1,7 @@
+{
+ "error": {
+  "code": "qr_not_found",
+  "message": "QR ou code inconnu. Vérifiez le code ou demandez au client d'afficher son QR.",
+  "reason": "NOT_FOUND"
+ }
+}

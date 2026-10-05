@@ -53,4 +53,15 @@ class TanyFormattersTest {
         assertEquals(TanyLanguage.FR, TanyLanguage.fromTag("de"))
         assertEquals("${Char(0x2066)}TNY-1003${Char(0x2069)}", ltrIsolated("TNY-1003"))
     }
+
+    @Test
+    fun longDayAndTimeRangeForPremiumHeaders() {
+        assertEquals("Lundi 5 octobre", fr.businessLongDay(LocalDate.of(2026, 10, 5)))
+        assertEquals("Monday 5 October", en.businessLongDay(LocalDate.of(2026, 10, 5)))
+        val start = Instant.parse("2026-10-05T08:00:00Z")
+        val end = Instant.parse("2026-10-05T10:00:00Z")
+        val range = en.businessTimeRange(start, end)
+        assertEquals("${en.businessTime(start)}–${en.businessTime(end)}", range)
+        assertEquals("09:05", en.clock(java.time.LocalTime.of(9, 5)))
+    }
 }

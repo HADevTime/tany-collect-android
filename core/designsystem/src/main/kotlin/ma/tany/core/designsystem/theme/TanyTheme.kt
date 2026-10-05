@@ -1,6 +1,7 @@
 package ma.tany.core.designsystem.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -34,51 +35,7 @@ fun TanyTheme(
         ThemePreference.DARK -> true
     }
     val colors = if (dark) DarkTanyColors else LightTanyColors
-    val material = if (dark) {
-        darkColorScheme(
-            primary = colors.primaryAction,
-            onPrimary = colors.onPrimaryAction,
-            secondary = colors.accent,
-            onSecondary = colors.onAccent,
-            tertiary = colors.accent,
-            background = colors.page,
-            onBackground = colors.textPrimary,
-            surface = colors.surface,
-            onSurface = colors.textPrimary,
-            surfaceVariant = colors.neutral,
-            onSurfaceVariant = colors.textMuted,
-            surfaceContainerLow = colors.surface,
-            surfaceContainer = colors.elevated,
-            surfaceContainerHigh = colors.elevated,
-            outline = colors.border,
-            outlineVariant = colors.border,
-            error = colors.destructive,
-            onError = colors.onDestructive,
-            scrim = colors.scrim,
-        )
-    } else {
-        lightColorScheme(
-            primary = colors.primaryAction,
-            onPrimary = colors.onPrimaryAction,
-            secondary = colors.accent,
-            onSecondary = colors.onAccent,
-            tertiary = colors.accent,
-            background = colors.page,
-            onBackground = colors.textPrimary,
-            surface = colors.surface,
-            onSurface = colors.textPrimary,
-            surfaceVariant = colors.neutral,
-            onSurfaceVariant = colors.textMuted,
-            surfaceContainerLow = colors.surface,
-            surfaceContainer = colors.elevated,
-            surfaceContainerHigh = colors.elevated,
-            outline = colors.border,
-            outlineVariant = colors.border,
-            error = colors.destructive,
-            onError = colors.onDestructive,
-            scrim = colors.scrim,
-        )
-    }
+    val material = if (dark) darkColorScheme().tany(colors) else lightColorScheme().tany(colors)
     val typography = DefaultTanyTypography
     CompositionLocalProvider(
         LocalTanyColors provides colors,
@@ -90,7 +47,9 @@ fun TanyTheme(
         MaterialTheme(
             colorScheme = material,
             typography = Typography(
+                headlineLarge = typography.largeTitle,
                 headlineMedium = typography.title,
+                headlineSmall = typography.title,
                 titleLarge = typography.title,
                 titleMedium = typography.headline,
                 bodyLarge = typography.body,
@@ -98,11 +57,49 @@ fun TanyTheme(
                 labelLarge = typography.bodyStrong,
                 labelMedium = typography.label,
                 bodySmall = typography.caption,
+                labelSmall = typography.caption,
             ),
             content = content,
         )
     }
 }
+
+/** Maps TANY roles onto the Material scheme so stock M3 components (fields, switches, menus) blend in. */
+private fun ColorScheme.tany(colors: TanyColors): ColorScheme = copy(
+    primary = colors.primaryAction,
+    onPrimary = colors.onPrimaryAction,
+    primaryContainer = colors.accentContainer,
+    onPrimaryContainer = colors.onAccentContainer,
+    secondary = colors.accent,
+    onSecondary = colors.onAccent,
+    secondaryContainer = colors.accentContainer,
+    onSecondaryContainer = colors.onAccentContainer,
+    tertiary = colors.accent,
+    onTertiary = colors.onAccent,
+    background = colors.page,
+    onBackground = colors.textPrimary,
+    surface = colors.surface,
+    onSurface = colors.textPrimary,
+    surfaceVariant = colors.neutral,
+    onSurfaceVariant = colors.textMuted,
+    surfaceTint = colors.surface,
+    surfaceBright = colors.surface,
+    surfaceDim = colors.page,
+    surfaceContainerLowest = colors.surface,
+    surfaceContainerLow = colors.surface,
+    surfaceContainer = colors.elevated,
+    surfaceContainerHigh = colors.elevated,
+    surfaceContainerHighest = colors.neutral,
+    inverseSurface = colors.chrome,
+    inverseOnSurface = colors.onChrome,
+    outline = colors.border,
+    outlineVariant = colors.divider,
+    error = colors.destructive,
+    onError = colors.onDestructive,
+    errorContainer = colors.danger.container,
+    onErrorContainer = colors.danger.content,
+    scrim = colors.scrim,
+)
 
 /** Accessors: `TanyTheme.colors.accent`, `TanyTheme.typography.body`… */
 object TanyTheme {

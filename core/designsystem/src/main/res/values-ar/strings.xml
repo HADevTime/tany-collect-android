@@ -8,4 +8,5 @@
     <string name="tany_error_title">حدث خطأ ما</string>
     <string name="tany_cd_product_image">صورة الغرض</string>
     <string name="tany_cd_image_unavailable">الصورة غير متاحة</string>
+    <string name="tany_action_clear">مسح</string>
 </resources>

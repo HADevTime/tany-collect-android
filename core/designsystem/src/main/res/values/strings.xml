@@ -9,4 +9,5 @@
     <string name="tany_error_title">Une erreur est survenue</string>
     <string name="tany_cd_product_image">Photo de l’objet</string>
     <string name="tany_cd_image_unavailable">Photo indisponible</string>
+    <string name="tany_action_clear">Effacer</string>
 </resources>

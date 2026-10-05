@@ -8,4 +8,5 @@
     <string name="tany_error_title">Something went wrong</string>
     <string name="tany_cd_product_image">Item photo</string>
     <string name="tany_cd_image_unavailable">Photo unavailable</string>
+    <string name="tany_action_clear">Clear</string>
 </resources>

@@ -29,7 +29,15 @@ import ma.tany.core.designsystem.component.ConfirmationRequest
 import ma.tany.core.designsystem.component.ConfirmationSheetHost
 import ma.tany.core.designsystem.component.MoneyText
 import ma.tany.core.designsystem.component.ProductImageSurface
+import ma.tany.core.designsystem.component.TanyAmountPanel
 import ma.tany.core.designsystem.component.TanyBadge
+import ma.tany.core.designsystem.component.TanyCardSkeleton
+import ma.tany.core.designsystem.component.TanyMetricTile
+import ma.tany.core.designsystem.component.TanyNotice
+import ma.tany.core.designsystem.component.TanySegment
+import ma.tany.core.designsystem.component.TanySegmentedControl
+import ma.tany.core.designsystem.component.TanyStepState
+import ma.tany.core.designsystem.component.TanyTimelineStep
 import ma.tany.core.designsystem.component.TanyButton
 import ma.tany.core.designsystem.component.TanyButtonStyle
 import ma.tany.core.designsystem.component.TanyCard
@@ -129,6 +137,27 @@ object InternalTools {
                             { confirmation.show(ConfirmationRequest("cancel", "Annuler ?", "Action irréversible.", "Annuler la réservation", ConfirmationKind.DESTRUCTIVE)) },
                             style = TanyButtonStyle.DESTRUCTIVE,
                         )
+                        TanyAmountPanel(label = "À encaisser", amount = MoneyAmount.parse("448.5"), caption = "Montant fixé par TANY")
+                        TanyNotice(message = "En attente de la confirmation du client.", tone = TanyTone.WARNING)
+                        TanyNotice(message = "QR expiré.", tone = TanyTone.DANGER)
+                        var segment by remember { mutableStateOf(0) }
+                        TanySegmentedControl(
+                            options = listOf(TanySegment(0, "Auto"), TanySegment(1, "Clair"), TanySegment(2, "Sombre")),
+                            selected = segment,
+                            onSelect = { segment = it },
+                        )
+                        TanyCard {
+                            TanyTimelineStep("QR du client vérifié", TanyStepState.DONE, "Fait")
+                            TanyTimelineStep("Caution remise", TanyStepState.TODO, "À faire") {
+                                TanyButton("J’ai remis la caution", {}, style = TanyButtonStyle.TONAL, compact = true)
+                            }
+                            TanyTimelineStep("Le client confirme", TanyStepState.WAITING, "En attente", isLast = true)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TanyMetricTile("4", "Collectes", Modifier.weight(1f))
+                            TanyMetricTile("2", "En retard", Modifier.weight(1f), tone = TanyTone.DANGER)
+                        }
+                        TanyCardSkeleton()
                         TanyEmptyState(title = "Empty state", message = "Message", modifier = Modifier.fillMaxWidth())
                     }
                 }

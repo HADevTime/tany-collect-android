@@ -1,5 +1,6 @@
 package ma.tany.core.designsystem.component
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
@@ -27,7 +30,11 @@ import androidx.compose.ui.unit.dp
 import ma.tany.core.designsystem.theme.TanyDimens
 import ma.tany.core.designsystem.theme.TanyTheme
 
-enum class TanyButtonStyle { PRIMARY, SECONDARY, DESTRUCTIVE, TEXT }
+/**
+ * PRIMARY = the one main action of a screen / card (TANY black, light in dark mode) · TONAL = an available step among
+ * several (soft accent container) · SECONDARY = outlined alternative · DESTRUCTIVE · TEXT.
+ */
+enum class TanyButtonStyle { PRIMARY, SECONDARY, TONAL, DESTRUCTIVE, TEXT }
 
 /**
  * Guards against double taps: a click is ignored while [busy] or within [windowMs] of the previous click.
@@ -60,18 +67,24 @@ fun TanyButton(
     loading: Boolean = false,
     loadingDescription: String? = null,
     fillWidth: Boolean = true,
+    @DrawableRes icon: Int? = null,
+    compact: Boolean = false,
 ) {
     val colors = TanyTheme.colors
     val guarded = rememberSingleTap(busy = loading, onClick = onClick)
     val base = modifier
         .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
-        .heightIn(min = TanyDimens.ButtonHeight)
+        .heightIn(min = if (compact) TanyDimens.MinTouchTarget else TanyDimens.ButtonHeight)
         .semantics { if (loading && loadingDescription != null) stateDescription = loadingDescription }
-    val shape = TanyTheme.radii.medium
+    val shape = TanyTheme.radii.large
     val isEnabled = enabled && !loading
     val content: @Composable (Color) -> Unit = { contentColor ->
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (loading) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = contentColor, strokeWidth = 2.dp)
+            if (loading) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = contentColor, strokeWidth = 2.dp)
+            } else if (icon != null) {
+                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(20.dp))
+            }
             Text(text = text, style = TanyTheme.typography.bodyStrong, textAlign = TextAlign.Center)
         }
     }
@@ -92,6 +105,18 @@ fun TanyButton(
                 ),
             ) { content(onContainer) }
         }
+        TanyButtonStyle.TONAL -> Button(
+            onClick = guarded,
+            modifier = base,
+            enabled = isEnabled,
+            shape = shape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = colors.accentContainer,
+                contentColor = colors.onAccentContainer,
+                disabledContainerColor = colors.neutral,
+                disabledContentColor = colors.textMuted,
+            ),
+        ) { content(colors.onAccentContainer) }
         TanyButtonStyle.SECONDARY -> OutlinedButton(
             onClick = guarded,
             modifier = base,

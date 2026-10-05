@@ -1,5 +1,6 @@
 package ma.tany.collect.feature.notifications
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,19 +12,19 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.background
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -40,25 +41,34 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ma.tany.collect.R
+import ma.tany.collect.core.ui.dayLabel
+import ma.tany.collect.core.ui.groupConsecutiveByDay
 import ma.tany.collect.core.ui.messageRes
-import ma.tany.core.designsystem.component.BusinessDateTimeText
+import ma.tany.core.designsystem.R as DsR
+import ma.tany.core.designsystem.component.LocalTanyFormatters
 import ma.tany.core.designsystem.component.MoneyText
-import ma.tany.core.designsystem.component.TanyButton
-import ma.tany.core.designsystem.component.TanyButtonStyle
 import ma.tany.core.designsystem.component.TanyCard
+import ma.tany.core.designsystem.component.TanyChipSize
+import ma.tany.core.designsystem.component.TanyDivider
+import ma.tany.core.designsystem.component.TanyDot
 import ma.tany.core.designsystem.component.TanyEmptyState
 import ma.tany.core.designsystem.component.TanyErrorState
-import ma.tany.core.designsystem.component.TanyLoadingState
+import ma.tany.core.designsystem.component.TanyListSkeleton
+import ma.tany.core.designsystem.component.TanySectionHeader
 import ma.tany.core.designsystem.component.TanyStatusChip
 import ma.tany.core.designsystem.component.TanyTone
+import ma.tany.core.designsystem.component.TanyToneIcon
 import ma.tany.core.designsystem.component.TanyTopBar
 import ma.tany.core.designsystem.format.ltrIsolated
 import ma.tany.core.designsystem.theme.TanyTheme
+import ma.tany.core.model.common.BusinessTime
+import ma.tany.core.model.common.NotificationCategory
 import ma.tany.core.model.common.NotificationItem
 import ma.tany.core.model.common.NotificationTone
 import ma.tany.core.network.ApiError
 import ma.tany.core.network.ApiResult
 import ma.tany.core.network.CollectNotificationRepository
+import java.time.Instant
 import javax.inject.Inject
 
 data class NotificationsState(
@@ -157,35 +167,64 @@ fun NotificationsScreen(
     viewModel: NotificationsViewModel = hiltViewModel(),
 ) {
     Column(Modifier.fillMaxSize()) {
-        TanyTopBar(title = stringResource(R.string.notifications_title), onBack = onBack, chrome = true)
         LifecycleResumeEffect(pointId) {
             viewModel.refresh(pointId)
             onPauseOrDispose { }
         }
         LaunchedEffect(viewModel) { viewModel.links.collect(onOpenLink) }
         val state by viewModel.state.collectAsStateWithLifecycle()
-        when {
-            state.loading -> TanyLoadingState()
-            state.error != null && state.items.isEmpty() -> TanyErrorState(stringResource(state.error!!.messageRes()), onRetry = { viewModel.refresh(pointId) })
-            !state.enabled -> TanyEmptyState(title = stringResource(R.string.notifications_disabled))
-            state.items.isEmpty() -> TanyEmptyState(title = stringResource(R.string.notifications_empty))
-            else -> LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.navigationBarsPadding(),
-            ) {
+        TanyTopBar(
+            title = stringResource(R.string.notifications_title),
+            onBack = onBack,
+            subtitle = state.unreadCount.takeIf { it > 0 }?.let { stringResource(R.string.notifications_unread_count, it) },
+            actions = {
                 if (state.unreadCount > 0) {
-                    item(key = "mark-all") {
-                        TanyButton(stringResource(R.string.notifications_mark_all), { viewModel.markAllRead(pointId) }, style = TanyButtonStyle.TEXT)
+                    TextButton(onClick = { viewModel.markAllRead(pointId) }) {
+                        Text(stringResource(R.string.notifications_mark_all_short), style = TanyTheme.typography.label, color = TanyTheme.colors.textPrimary)
                     }
                 }
-                items(state.items, key = { it.id }) { item -> NotificationRow(item, onOpen = { viewModel.open(pointId, item) }) }
-                if (state.nextCursor != null) {
-                    item(key = "more") {
-                        // Reaching the end requests the next page (cursor-based, server order).
-                        LaunchedEffect(state.nextCursor) { viewModel.loadMore(pointId) }
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = TanyTheme.colors.accent, modifier = Modifier.size(24.dp))
+            },
+        )
+        val error = state.error
+        when {
+            state.loading -> TanyListSkeleton(rows = 5, withMedia = false)
+            error != null && state.items.isEmpty() -> TanyErrorState(stringResource(error.messageRes()), onRetry = { viewModel.refresh(pointId) })
+            !state.enabled -> TanyEmptyState(title = stringResource(R.string.notifications_disabled), icon = DsR.drawable.ic_tany_bell)
+            state.items.isEmpty() -> TanyEmptyState(
+                title = stringResource(R.string.notifications_empty),
+                message = stringResource(R.string.notifications_empty_message),
+                icon = DsR.drawable.ic_tany_bell,
+            )
+            else -> {
+                val today = remember { BusinessTime.businessDate(Instant.now()) }
+                val groups = remember(state.items) { groupConsecutiveByDay(state.items) { BusinessTime.businessDate(it.createdAt) } }
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.navigationBarsPadding(),
+                ) {
+                    groups.forEachIndexed { index, (day, items) ->
+                        item(key = "day-$index") {
+                            TanySectionHeader(dayLabel(day, today), modifier = Modifier.padding(top = 6.dp))
+                        }
+                        item(key = "group-$index-${items.first().id}") {
+                            TanyCard(contentPadding = 0.dp) {
+                                Column {
+                                    items.forEachIndexed { i, item ->
+                                        if (i > 0) TanyDivider(inset = 66.dp)
+                                        NotificationRow(item, onOpen = { viewModel.open(pointId, item) })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (state.nextCursor != null) {
+                        item(key = "more") {
+                            // Reaching the end requests the next page (cursor-based, server order).
+                            LaunchedEffect(state.nextCursor) { viewModel.loadMore(pointId) }
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = TanyTheme.colors.accent, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            }
                         }
                     }
                 }
@@ -194,22 +233,46 @@ fun NotificationsScreen(
     }
 }
 
+/**
+ * One notification: category glyph tinted by the server tone, title (server-localized), body, amount, booking
+ * context, time and the still-relevant action. Unread = bold title + dot + TalkBack label (never the dot alone).
+ */
 @Composable
 private fun NotificationRow(item: NotificationItem, onOpen: () -> Unit) {
     val unreadLabel = stringResource(R.string.notifications_unread)
-    TanyCard(onClick = onOpen, modifier = if (!item.isRead) Modifier.semantics { contentDescription = unreadLabel } else Modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!item.isRead) Box(Modifier.size(8.dp).background(TanyTheme.colors.accent, CircleShape))
-            Text(item.title, style = TanyTheme.typography.bodyStrong, modifier = Modifier.weight(1f))
-        }
-        Text(item.body, style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted)
-        item.amounts?.amount?.let { MoneyText(it) }
-        val context = listOfNotNull(item.productName, item.bookingReference?.let(::ltrIsolated)).joinToString(" · ")
-        if (context.isNotEmpty()) Text(context, style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BusinessDateTimeText(item.createdAt, style = TanyTheme.typography.caption)
-            // Server-revalidated action: shown only while still relevant (`action` null once resolved).
-            item.action?.takeIf { !item.isResolved }?.let { TanyStatusChip(it.label, item.tone.ui()) }
+    val colors = TanyTheme.colors
+    val formatters = LocalTanyFormatters.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onOpen)
+            .then(if (!item.isRead) Modifier.semantics { stateDescription = unreadLabel } else Modifier)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        TanyToneIcon(item.category.icon(), item.tone.ui(), size = 36.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    item.title,
+                    style = if (item.isRead) TanyTheme.typography.body else TanyTheme.typography.bodyStrong,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(formatters.businessTime(item.createdAt), style = TanyTheme.typography.caption, color = colors.textSubtle)
+                if (!item.isRead) TanyDot()
+            }
+            Text(item.body, style = TanyTheme.typography.label, color = colors.textMuted)
+            val context = listOfNotNull(item.productName, item.bookingReference?.let(::ltrIsolated)).joinToString(" · ")
+            if (context.isNotEmpty()) Text(context, style = TanyTheme.typography.caption, color = colors.textSubtle)
+            val amount = item.amounts?.amount
+            val action = item.action?.takeIf { !item.isResolved }
+            if (amount != null || action != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    amount?.let { MoneyText(it) }
+                    // Server-revalidated action: shown only while still relevant (`action` null once resolved).
+                    action?.let { TanyStatusChip(it.label, item.tone.ui(), size = TanyChipSize.SMALL) }
+                }
+            }
         }
     }
 }
@@ -219,4 +282,15 @@ private fun NotificationTone.ui(): TanyTone = when (this) {
     NotificationTone.ACTION_REQUIRED -> TanyTone.ACTION
     NotificationTone.ATTENTION -> TanyTone.WARNING
     NotificationTone.INFO, NotificationTone.UNKNOWN -> TanyTone.INFO
+}
+
+private fun NotificationCategory.icon(): Int = when (this) {
+    NotificationCategory.PICKUP -> DsR.drawable.ic_tany_pickup
+    NotificationCategory.RETURN -> DsR.drawable.ic_tany_return
+    NotificationCategory.DEPOSIT -> DsR.drawable.ic_tany_cash
+    NotificationCategory.BOOKING -> DsR.drawable.ic_tany_calendar
+    NotificationCategory.INCIDENT -> DsR.drawable.ic_tany_warning
+    NotificationCategory.IDENTITY -> DsR.drawable.ic_tany_shield
+    NotificationCategory.ACCOUNT -> DsR.drawable.ic_tany_person
+    else -> DsR.drawable.ic_tany_bell
 }

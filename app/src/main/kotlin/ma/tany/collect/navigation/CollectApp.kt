@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.util.Consumer
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -58,8 +60,10 @@ import ma.tany.collect.feature.operations.OperationScanScreen
 import ma.tany.collect.feature.scanner.ScanTarget
 import ma.tany.core.model.common.QrPurpose
 import ma.tany.collect.feature.today.TodayScreen
+import ma.tany.collect.feature.today.TodayShortcuts
 import ma.tany.collect.internal.InternalTools
 import ma.tany.core.designsystem.R as DsR
+import ma.tany.core.designsystem.component.TanyDivider
 import ma.tany.core.designsystem.component.TanyLoadingState
 import ma.tany.core.designsystem.theme.TanyTheme
 import ma.tany.core.model.collect.CollectMe
@@ -155,21 +159,24 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
             if (showBar) {
-                NavigationBar(containerColor = colors.surface) {
-                    tabs.forEach { tab ->
-                        NavigationBarItem(
-                            selected = destination?.hierarchy?.any { it.hasRoute(tab.type) } == true,
-                            onClick = { navController.navigateTab(tab.route) },
-                            icon = { Icon(painterResource(tab.icon), contentDescription = null) },
-                            label = { Text(stringResource(tab.label), maxLines = 1) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = colors.onAccent,
-                                indicatorColor = colors.accent,
-                                selectedTextColor = colors.textPrimary,
-                                unselectedIconColor = colors.textMuted,
-                                unselectedTextColor = colors.textMuted,
-                            ),
-                        )
+                Column {
+                    TanyDivider()
+                    NavigationBar(containerColor = colors.surface, tonalElevation = 0.dp) {
+                        tabs.forEach { tab ->
+                            NavigationBarItem(
+                                selected = destination?.hierarchy?.any { it.hasRoute(tab.type) } == true,
+                                onClick = { navController.navigateTab(tab.route) },
+                                icon = { Icon(painterResource(tab.icon), contentDescription = null) },
+                                label = { Text(stringResource(tab.label), maxLines = 1) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = colors.onAccentContainer,
+                                    indicatorColor = colors.accentContainer,
+                                    selectedTextColor = colors.textPrimary,
+                                    unselectedIconColor = colors.textMuted,
+                                    unselectedTextColor = colors.textMuted,
+                                ),
+                            )
+                        }
                     }
                 }
             }
@@ -183,6 +190,11 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
                     unreadNotifications = unread,
                     onOpenNotifications = { navController.navigate(NotificationsRoute) },
                     onOpenBooking = openBooking,
+                    shortcuts = TodayShortcuts(
+                        scan = { navController.navigateTab(ScanRoute) },
+                        activity = { navController.navigateTab(ActivityRoute) },
+                        equipment = if (me?.features?.assets == true) ({ navController.navigateTab(EquipmentRoute) }) else null,
+                    ),
                 )
             }
             composable<ScanRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.SCAN })) {

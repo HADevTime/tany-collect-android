@@ -16,6 +16,8 @@ data class TanySpacing(
     val xxl: Dp = 32.dp,
     /** Horizontal screen padding. */
     val screen: Dp = 16.dp,
+    /** Vertical gap between screen sections (header › cards › lists). */
+    val section: Dp = 24.dp,
 )
 
 @Immutable
@@ -24,10 +26,13 @@ data class TanyRadii(
     val m: Dp = 12.dp,
     val l: Dp = 16.dp,
     val xl: Dp = 24.dp,
+    /** Cards and grouped lists. */
+    val card: Dp = 20.dp,
 ) {
     val small get() = RoundedCornerShape(s)
     val medium get() = RoundedCornerShape(m)
     val large get() = RoundedCornerShape(l)
+    val cardShape get() = RoundedCornerShape(card)
     val sheet get() = RoundedCornerShape(topStart = xl, topEnd = xl)
     val pill get() = RoundedCornerShape(percent = 50)
 }
@@ -41,4 +46,6 @@ object TanyDimens {
     val MinTouchTarget: Dp = 48.dp
     val ButtonHeight: Dp = 52.dp
     val BorderWidth: Dp = 1.dp
+    /** Hairline used for dividers inside cards. */
+    val Hairline: Dp = 0.75.dp
 }

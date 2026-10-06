@@ -33,6 +33,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class AssetRoute(val assetId: String)
 
+/** Matériel › scan an asset label to open its sheet (`assets/lookup`). */
+@Serializable data object AssetLookupRoute
+
 @Serializable data object ShowcaseRoute
 
 @Serializable data object AuthPhoneRoute

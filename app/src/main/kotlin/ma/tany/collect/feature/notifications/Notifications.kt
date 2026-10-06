@@ -41,12 +41,9 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ma.tany.collect.R
-import ma.tany.collect.core.ui.dayLabel
-import ma.tany.collect.core.ui.groupConsecutiveByDay
 import ma.tany.collect.core.ui.messageRes
 import ma.tany.core.designsystem.R as DsR
 import ma.tany.core.designsystem.component.LocalTanyFormatters
-import ma.tany.core.designsystem.component.MoneyText
 import ma.tany.core.designsystem.component.TanyCard
 import ma.tany.core.designsystem.component.TanyChipSize
 import ma.tany.core.designsystem.component.TanyDivider
@@ -69,6 +66,7 @@ import ma.tany.core.network.ApiError
 import ma.tany.core.network.ApiResult
 import ma.tany.core.network.CollectNotificationRepository
 import java.time.Instant
+import java.time.LocalDate
 import javax.inject.Inject
 
 data class NotificationsState(
@@ -139,7 +137,8 @@ class NotificationsViewModel @Inject constructor(private val repository: Collect
 
     /** Marks [item] read (server count wins) and opens its deep link, if any. */
     fun open(pointId: String, item: NotificationItem) {
-        item.deepLink?.let { _links.trySend(it) }
+        // No link from the server: open the booking it concerns (navigation only; the screen re-reads the server).
+        (item.deepLink ?: item.bookingId?.let { "tanycollect://booking/$it" })?.let { _links.trySend(it) }
         if (item.isRead) return
         _state.update { s -> s.copy(items = s.items.map { if (it.id == item.id) it.copy(isRead = true) else it }) }
         viewModelScope.launch {
@@ -191,28 +190,38 @@ fun NotificationsScreen(
             error != null && state.items.isEmpty() -> TanyErrorState(stringResource(error.messageRes()), onRetry = { viewModel.refresh(pointId) })
             !state.enabled -> TanyEmptyState(title = stringResource(R.string.notifications_disabled), icon = DsR.drawable.ic_tany_bell)
             state.items.isEmpty() -> TanyEmptyState(
-                title = stringResource(R.string.notifications_empty),
+                title = stringResource(R.string.notifications_empty_title),
                 message = stringResource(R.string.notifications_empty_message),
                 icon = DsR.drawable.ic_tany_bell,
             )
             else -> {
                 val today = remember { BusinessTime.businessDate(Instant.now()) }
-                val groups = remember(state.items) { groupConsecutiveByDay(state.items) { BusinessTime.businessDate(it.createdAt) } }
+                val groups = remember(state.items, today) { bucketNotifications(state.items, today) }
                 LazyColumn(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.navigationBarsPadding(),
                 ) {
-                    groups.forEachIndexed { index, (day, items) ->
+                    groups.forEachIndexed { index, (bucket, items) ->
                         item(key = "day-$index") {
-                            TanySectionHeader(dayLabel(day, today), modifier = Modifier.padding(top = 6.dp))
+                            TanySectionHeader(
+                                stringResource(
+                                    when (bucket) {
+                                        NotificationBucket.TODAY -> R.string.day_today
+                                        NotificationBucket.YESTERDAY -> R.string.day_yesterday
+                                        NotificationBucket.OLDER -> R.string.notifications_older
+                                    },
+                                ),
+                                trailing = items.size.toString(),
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
                         }
                         item(key = "group-$index-${items.first().id}") {
                             TanyCard(contentPadding = 0.dp) {
                                 Column {
                                     items.forEachIndexed { i, item ->
                                         if (i > 0) TanyDivider(inset = 66.dp)
-                                        NotificationRow(item, onOpen = { viewModel.open(pointId, item) })
+                                        NotificationRow(item, older = bucket == NotificationBucket.OLDER, onOpen = { viewModel.open(pointId, item) })
                                     }
                                 }
                             }
@@ -238,7 +247,7 @@ fun NotificationsScreen(
  * context, time and the still-relevant action. Unread = bold title + dot + TalkBack label (never the dot alone).
  */
 @Composable
-private fun NotificationRow(item: NotificationItem, onOpen: () -> Unit) {
+private fun NotificationRow(item: NotificationItem, older: Boolean, onOpen: () -> Unit) {
     val unreadLabel = stringResource(R.string.notifications_unread)
     val colors = TanyTheme.colors
     val formatters = LocalTanyFormatters.current
@@ -258,23 +267,42 @@ private fun NotificationRow(item: NotificationItem, onOpen: () -> Unit) {
                     style = if (item.isRead) TanyTheme.typography.body else TanyTheme.typography.bodyStrong,
                     modifier = Modifier.weight(1f),
                 )
-                Text(formatters.businessTime(item.createdAt), style = TanyTheme.typography.caption, color = colors.textSubtle)
+                Text(
+                    if (older) formatters.businessDayTime(item.createdAt) else formatters.businessTime(item.createdAt),
+                    style = TanyTheme.typography.caption,
+                    color = colors.textSubtle,
+                )
                 if (!item.isRead) TanyDot()
             }
             Text(item.body, style = TanyTheme.typography.label, color = colors.textMuted)
             val context = listOfNotNull(item.productName, item.bookingReference?.let(::ltrIsolated)).joinToString(" · ")
             if (context.isNotEmpty()) Text(context, style = TanyTheme.typography.caption, color = colors.textSubtle)
-            val amount = item.amounts?.amount
-            val action = item.action?.takeIf { !item.isResolved }
-            if (amount != null || action != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    amount?.let { MoneyText(it) }
-                    // Server-revalidated action: shown only while still relevant (`action` null once resolved).
-                    action?.let { TanyStatusChip(it.label, item.tone.ui(), size = TanyChipSize.SMALL) }
-                }
+            // State badge (iOS): « Action requise » while the server still offers an action, « Traité » once resolved.
+            when {
+                item.tone == NotificationTone.ACTION_REQUIRED && item.action != null && !item.isResolved ->
+                    TanyStatusChip(stringResource(R.string.notifications_action_required), TanyTone.ACTION, size = TanyChipSize.SMALL)
+                item.isResolved -> TanyStatusChip(stringResource(R.string.notifications_handled), TanyTone.SUCCESS, size = TanyChipSize.SMALL)
             }
         }
     }
+}
+
+/** Notification centre buckets (iOS): today · yesterday · older, by business day of creation, server order kept. */
+enum class NotificationBucket { TODAY, YESTERDAY, OLDER }
+
+fun bucketNotifications(items: List<NotificationItem>, today: LocalDate): List<Pair<NotificationBucket, List<NotificationItem>>> {
+    val groups = mutableListOf<Pair<NotificationBucket, MutableList<NotificationItem>>>()
+    items.forEach { item ->
+        val day = BusinessTime.businessDate(item.createdAt)
+        val bucket = when {
+            day >= today -> NotificationBucket.TODAY
+            day == today.minusDays(1) -> NotificationBucket.YESTERDAY
+            else -> NotificationBucket.OLDER
+        }
+        val last = groups.lastOrNull()
+        if (last != null && last.first == bucket) last.second += item else groups += bucket to mutableListOf(item)
+    }
+    return groups.map { (bucket, list) -> bucket to list.toList() }
 }
 
 private fun NotificationTone.ui(): TanyTone = when (this) {

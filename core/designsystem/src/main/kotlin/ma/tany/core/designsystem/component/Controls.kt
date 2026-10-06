@@ -420,3 +420,25 @@ fun TanyVerticalRule(modifier: Modifier = Modifier) {
             .background(TanyTheme.colors.divider),
     )
 }
+
+/** Thin rounded progress bar (bonus tiers, asset wear). [progress] is a server ratio, clamped to 0…1. */
+@Composable
+fun TanyProgressBar(progress: Float, modifier: Modifier = Modifier, tone: TanyTone? = null) {
+    val colors = TanyTheme.colors
+    val clamped = progress.coerceIn(0f, 1f)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .clip(TanyTheme.radii.pill)
+            .background(colors.neutral),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(clamped)
+                .height(6.dp)
+                .clip(TanyTheme.radii.pill)
+                .background(tone?.colors()?.accent ?: colors.primaryAction),
+        )
+    }
+}

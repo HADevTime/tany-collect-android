@@ -43,10 +43,16 @@ private class FakeCollectRepository(var today: ApiResult<TodayResponse>) : Colle
 
     override suspend fun booking(bookingId: String, pointId: String): ApiResult<MerchantBookingDetail> = ApiResult.Failure(ApiError.Unauthorized)
 
-    override suspend fun assets(pointId: String): ApiResult<AssetsResponse> = ApiResult.Success(AssetsResponse(enabled = false))
+    override suspend fun assets(pointId: String, query: String?, filter: ma.tany.core.model.collect.AssetFilter?): ApiResult<AssetsResponse> = ApiResult.Success(AssetsResponse(enabled = false))
 
     override suspend fun asset(pointId: String, assetId: String): ApiResult<ma.tany.core.model.collect.AssetDetail> =
         ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun assetLookup(pointId: String, code: String): ApiResult<ma.tany.core.model.collect.AssetDetail> =
+            ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun incidents(pointId: String): ApiResult<ma.tany.core.model.collect.IncidentsResponse> =
+            ApiResult.Failure(ApiError.Unauthorized)
 }
 
 class CollectAppTest {

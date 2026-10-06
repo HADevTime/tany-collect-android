@@ -1,6 +1,27 @@
 package ma.tany.collect.feature.booking
 
 import android.net.Uri
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import ma.tany.core.designsystem.component.TanyBottomSheet
+import ma.tany.core.designsystem.component.TanyIllustration
+import ma.tany.core.model.collect.ActorRole
+import ma.tany.core.model.collect.AssetStatus
+import ma.tany.core.model.collect.BookingEventType
+import ma.tany.core.model.common.IncidentStatus
+import ma.tany.core.model.common.PhotoType
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +42,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,13 +57,17 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,8 +78,10 @@ import ma.tany.collect.core.media.OperationPhotos
 import ma.tany.collect.core.ui.LoadState
 import ma.tany.collect.core.ui.messageRes
 import ma.tany.collect.core.ui.toLoadState
+import ma.tany.collect.feature.operations.confirmHaptic
 import ma.tany.collect.feature.operations.text
 import ma.tany.collect.feature.today.icon
+import ma.tany.collect.feature.today.durationText
 import ma.tany.collect.feature.today.label
 import ma.tany.collect.feature.today.ui
 import ma.tany.core.designsystem.R as DsR
@@ -88,8 +119,10 @@ import ma.tany.core.designsystem.component.rememberConfirmationState
 import ma.tany.core.designsystem.component.tanyFieldColors
 import ma.tany.core.designsystem.format.ltrIsolated
 import ma.tany.core.designsystem.theme.TanyTheme
+import ma.tany.core.model.collect.IncidentBody
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.MerchantDepositAction
+import ma.tany.core.model.collect.MerchantPhase
 import ma.tany.core.model.collect.OperationKind
 import ma.tany.core.model.collect.ReturnBody
 import ma.tany.core.model.collect.ReturnIncident
@@ -108,7 +141,13 @@ import java.io.File
 import javax.inject.Inject
 
 /** The merchant gesture currently being sent (one at a time). */
-enum class PickupGesture { PHOTO, PAYMENT, HANDOVER, RETURN_STATEMENT, DEPOSIT_REFUND }
+enum class PickupGesture { PHOTO, PAYMENT, HANDOVER, RETURN_STATEMENT, DEPOSIT_REFUND, INCIDENT }
+
+/** What the customer just confirmed (seen in the server's timestamps between two reads) — drives the success card. */
+enum class CompletedStep { PICKUP, RETURN, DEPOSIT }
+
+/** Outcome of « Relancer le client » (server answer; `nudged:false` = a reminder was already sent recently). */
+enum class NudgeOutcome { SENT, ALREADY_SENT }
 
 /** Merchant return statement being prepared (sent once, with the final confirmation). */
 data class ReturnForm(
@@ -127,6 +166,14 @@ data class PickupUiState(
     /** Condition the merchant declares with the next photo. */
     val photoCondition: AssetCondition = AssetCondition.GOOD,
     val returnForm: ReturnForm = ReturnForm(),
+    /** A pickup problem was reported to TANY in this session (the server keeps the incident). */
+    val incidentReported: Boolean = false,
+    val nudging: Boolean = false,
+    val nudgeOutcome: NudgeOutcome? = null,
+    /** Server cooldown end of the next reminder (epoch ms). */
+    val nudgeAvailableAt: Long = 0L,
+    /** The customer confirmed while the merchant was on the screen. */
+    val completed: CompletedStep? = null,
 )
 
 /**
@@ -157,10 +204,78 @@ class BookingDetailViewModel @Inject constructor(
         viewModelScope.launch { _state.value = repository.booking(bookingId, pointId).toLoadState() }
     }
 
+    /** Back on the screen (after a scan…): re-read without flashing the skeleton when a booking is already shown. */
+    fun reload(pointId: String) {
+        if (_state.value is LoadState.Loaded) viewModelScope.launch { reloadQuietly(pointId) } else load(pointId)
+    }
+
+    /** Waiting for the customer: the screen re-reads every few seconds (idempotent GET, never a gesture). */
+    fun poll(pointId: String) {
+        if (_pickup.value.busy != null) return
+        viewModelScope.launch { reloadQuietly(pointId) }
+    }
+
     private suspend fun reloadQuietly(pointId: String) {
         val result = repository.booking(bookingId, pointId)
-        if (result is ApiResult.Success) _state.value = LoadState.Loaded(result.value)
+        if (result is ApiResult.Success) applyBooking(result.value)
     }
+
+    /**
+     * Applies a server booking. When a customer confirmation timestamp appears between two reads, the success card is
+     * shown — a server FACT (the customer confirmed), never a client inference.
+     */
+    private fun applyBooking(next: MerchantBookingDetail) {
+        val previous = (_state.value as? LoadState.Loaded)?.value
+        if (previous != null && previous.id == next.id) {
+            val done = when {
+                previous.pickup?.customerConfirmedAt == null && next.pickup?.customerConfirmedAt != null -> CompletedStep.PICKUP
+                previous.returnInfo?.customerConfirmedAt == null && next.returnInfo?.customerConfirmedAt != null -> CompletedStep.RETURN
+                previous.deposit?.customerRefundConfirmedAt == null && next.deposit?.customerRefundConfirmedAt != null -> CompletedStep.DEPOSIT
+                else -> null
+            }
+            if (done != null) _pickup.update { it.copy(completed = done) }
+        }
+        _state.value = LoadState.Loaded(next)
+    }
+
+    fun dismissCompleted() = _pickup.update { it.copy(completed = null) }
+
+    /**
+     * « Relancer le client » (`POST nudge`): one tap = one request, never retried; the server throttles (60 s) and says
+     * when the next reminder is possible.
+     */
+    fun nudge(pointId: String, now: () -> Long = System::currentTimeMillis) {
+        val s = _pickup.value
+        if (s.nudging || now() < s.nudgeAvailableAt) return
+        _pickup.update { it.copy(nudging = true, nudgeOutcome = null) }
+        viewModelScope.launch {
+            when (val result = operations.nudge(bookingId, pointId)) {
+                is ApiResult.Success -> {
+                    result.value.booking?.let(::applyBooking)
+                    _pickup.update {
+                        it.copy(
+                            nudging = false,
+                            nudgeOutcome = if (result.value.nudged) NudgeOutcome.SENT else NudgeOutcome.ALREADY_SENT,
+                            nudgeAvailableAt = now() + result.value.retryAfterSeconds * 1_000L,
+                        )
+                    }
+                }
+                is ApiResult.Failure -> {
+                    _pickup.update { it.copy(nudging = false, error = CollectOperationError.from(result.error), failed = PickupGesture.HANDOVER) }
+                    reloadQuietly(pointId)
+                }
+            }
+        }
+    }
+
+    /** Pickup problem reported to TANY (`POST incidents`) — the handover can continue; TANY decides. */
+    fun reportIncident(pointId: String, type: IncidentType, description: String, onDone: () -> Unit) =
+        send(pointId, PickupGesture.INCIDENT, onDone) {
+            operations.reportIncident(
+                bookingId,
+                IncidentBody(pointId, type, description.trim().take(INCIDENT_DESCRIPTION_MAX).ifBlank { null }),
+            ).also { if (it is ApiResult.Success) _pickup.update { s -> s.copy(incidentReported = true) } }
+        }
 
     fun onPhotoCondition(condition: AssetCondition) = _pickup.update { it.copy(photoCondition = condition) }
 
@@ -198,8 +313,15 @@ class BookingDetailViewModel @Inject constructor(
     fun confirmPayment(pointId: String, amount: MoneyAmount, onDone: () -> Unit) =
         send(pointId, PickupGesture.PAYMENT, onDone) { operations.confirmPayment(bookingId, pointId, amount) }
 
-    fun handover(pointId: String, onDone: () -> Unit) =
-        send(pointId, PickupGesture.HANDOVER, onDone) { operations.handover(bookingId, pointId, null) }
+    /**
+     * Merchant half of the pickup. Sends the condition the SERVER recorded with the pickup photos (`pickup.condition`):
+     * without it the server would store « good » even after a « problem » photo.
+     */
+    fun handover(pointId: String, onDone: () -> Unit) {
+        val condition = (_state.value as? LoadState.Loaded)?.value?.pickup?.condition
+            ?.takeIf { it == AssetCondition.GOOD || it == AssetCondition.ISSUE_REPORTED }
+        send(pointId, PickupGesture.HANDOVER, onDone) { operations.handover(bookingId, pointId, condition) }
+    }
 
     private fun send(
         pointId: String,
@@ -215,7 +337,7 @@ class BookingDetailViewModel @Inject constructor(
         viewModelScope.launch {
             when (val result = call()) {
                 is ApiResult.Success -> {
-                    _state.value = LoadState.Loaded(result.value)
+                    applyBooking(result.value)
                     _pickup.update { it.copy(busy = null) }
                 }
                 is ApiResult.Failure -> {
@@ -278,13 +400,27 @@ fun BookingDetailScreen(
 ) {
     // Reloaded each time the screen shows again (back from a scan): server state only.
     LifecycleResumeEffect(pointId) {
-        viewModel.load(pointId)
+        viewModel.reload(pointId)
         onPauseOrDispose { }
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val pickup by viewModel.pickup.collectAsStateWithLifecycle()
     val confirmation = rememberConfirmationState()
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { viewModel.onPhotoCaptured(pointId, it) }
+    var incidentOpen by rememberSaveable { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val phase = (state as? LoadState.Loaded)?.value?.phase
+    // Waiting for the customer's confirmation in TANY: quiet re-read every 3 s while the screen is visible.
+    LaunchedEffect(phase, lifecycleOwner) {
+        if (phase in AWAITING_CUSTOMER_PHASES) {
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (true) {
+                    delay(AWAITING_POLL_MS)
+                    viewModel.poll(pointId)
+                }
+            }
+        }
+    }
 
     val paymentTitle = stringResource(R.string.pickup_cash_title)
     val paymentMessage = stringResource(R.string.pickup_cash_message)
@@ -316,6 +452,10 @@ fun BookingDetailScreen(
                 endpoint = viewModel.endpoint,
                 pickup = pickup,
                 actions = PickupActions(
+                    reportProblem = { incidentOpen = true },
+                    nudge = { viewModel.nudge(pointId) },
+                    finish = onBack,
+                    dismissCompleted = viewModel::dismissCompleted,
                     scanCustomer = { onScanCustomer(viewModel.bookingId, purpose) },
                     scanAsset = { onScanAsset(viewModel.bookingId, purpose) },
                     takePhoto = { camera.launch(viewModel.photoTarget()) },
@@ -377,6 +517,13 @@ fun BookingDetailScreen(
             }
         }
     }
+    if (incidentOpen) {
+        IncidentSheet(
+            busy = pickup.busy == PickupGesture.INCIDENT,
+            onDismiss = { incidentOpen = false },
+            onSubmit = { type, description -> viewModel.reportIncident(pointId, type, description) { incidentOpen = false } },
+        )
+    }
     ConfirmationSheetHost(confirmation) { request ->
         val booking = (state as? LoadState.Loaded)?.value
         when (request.id) {
@@ -390,6 +537,10 @@ fun BookingDetailScreen(
 }
 
 private class PickupActions(
+    val reportProblem: () -> Unit,
+    val nudge: () -> Unit,
+    val finish: () -> Unit,
+    val dismissCompleted: () -> Unit,
     val scanCustomer: () -> Unit,
     val scanAsset: () -> Unit,
     val takePhoto: () -> Unit,
@@ -412,7 +563,14 @@ private fun Content(booking: MerchantBookingDetail, endpoint: ApiEndpoint, picku
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        pickup.completed?.let { SuccessCard(it, booking, onFinish = actions.finish, onDismiss = actions.dismissCompleted) }
         SummaryCard(booking, endpoint)
+        when (booking.phase) {
+            MerchantPhase.CANCELLED -> CancelledCard(booking)
+            MerchantPhase.DEPOSIT_DISPUTED, MerchantPhase.BLOCKED_PENDING_REVIEW -> InterventionCard(booking)
+            else -> Unit
+        }
+        if (booking.phase in AWAITING_CUSTOMER_PHASES) WaitingCard(booking, pickup, actions)
         CustomerCard(booking, endpoint)
         if (booking.kind == OperationKind.PICKUP && booking.status == BookingStatus.RESERVED) {
             PickupCard(booking, pickup, actions)
@@ -422,8 +580,19 @@ private fun Content(booking: MerchantBookingDetail, endpoint: ApiEndpoint, picku
         }
         DepositCard(booking, pickup, actions)
         ScheduleCard(booking)
+        BookingDetailsSections(booking, endpoint)
     }
 }
+
+/** Phases where the customer must confirm in TANY (the screen re-reads, the merchant can send a reminder). */
+private val AWAITING_CUSTOMER_PHASES = setOf(
+    MerchantPhase.PICKUP_AWAITING_CUSTOMER,
+    MerchantPhase.RETURN_AWAITING_CUSTOMER,
+    MerchantPhase.DEPOSIT_AWAITING_CUSTOMER,
+)
+
+/** Re-read cadence while the customer confirms (same as TANY Collect iOS). */
+private const val AWAITING_POLL_MS = 3_000L
 
 /** Product, asset, kind and the SERVER phase with its explanation (never a locally inferred next step). */
 @Composable
@@ -487,6 +656,9 @@ private fun CustomerCard(booking: MerchantBookingDetail, endpoint: ApiEndpoint) 
         if (booking.customer.identity?.verified == true) {
             TanyStatusChip(stringResource(R.string.booking_identity_verified), TanyTone.SUCCESS, size = TanyChipSize.SMALL)
         }
+        if (booking.status == BookingStatus.RESERVED) {
+            Text(stringResource(R.string.booking_check_phone), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
+        }
     }
 }
 
@@ -527,12 +699,10 @@ private fun PickupCard(booking: MerchantBookingDetail, pickup: PickupUiState, ac
                 deposit?.let { TanyInfoRow(stringResource(R.string.booking_deposit_amount)) { MoneyText(it) } }
             }
         }
+        if (pickup.incidentReported) {
+            TanyNotice(message = stringResource(R.string.incident_reported_continue), tone = TanyTone.WARNING, icon = DsR.drawable.ic_tany_shield)
+        }
         if (handedOver) {
-            TanyNotice(
-                message = stringResource(R.string.pickup_waiting_customer),
-                tone = TanyTone.WARNING,
-                icon = DsR.drawable.ic_tany_clock,
-            )
             facts?.completionDeadline?.let {
                 TanyInfoRow(stringResource(R.string.pickup_complete_before), icon = DsR.drawable.ic_tany_clock) {
                     BusinessDateTimeText(it, style = TanyTheme.typography.label)
@@ -567,8 +737,19 @@ private fun PickupCard(booking: MerchantBookingDetail, pickup: PickupUiState, ac
                 enabled = !busy,
                 loading = pickup.busy == PickupGesture.PHOTO,
                 showActionWhenDone = true,
+                supporting = if (!handedOver) stringResource(R.string.photo_guide) else null,
                 extra = if (!handedOver) {
-                    { ConditionChoice(pickup.photoCondition, actions.onCondition) }
+                    {
+                        ConditionChoice(pickup.photoCondition, actions.onCondition)
+                        TanyButton(
+                            stringResource(R.string.incident_report_action),
+                            actions.reportProblem,
+                            style = TanyButtonStyle.TEXT,
+                            icon = DsR.drawable.ic_tany_warning,
+                            enabled = !busy,
+                            compact = true,
+                        )
+                    }
                 } else {
                     null
                 },
@@ -626,6 +807,7 @@ private fun Step(
     actionIcon: Int? = null,
     actionStyle: TanyButtonStyle = TanyButtonStyle.TONAL,
     showActionWhenDone: Boolean = false,
+    supporting: String? = null,
     trailing: (@Composable () -> Unit)? = null,
     extra: (@Composable () -> Unit)? = null,
 ) {
@@ -647,6 +829,7 @@ private fun Step(
         title = label,
         state = state,
         stateLabel = stateLabel,
+        supporting = supporting?.takeIf { !done },
         isLast = isLast,
         trailing = trailing,
         action = if (showAction || showExtra) {
@@ -697,8 +880,14 @@ private fun ReturnCard(booking: MerchantBookingDetail, ui: PickupUiState, action
     val busy = ui.busy != null
     TanyCard(contentPadding = 18.dp) {
         FlowHeader(DsR.drawable.ic_tany_return, stringResource(R.string.return_title), TanyTone.ACTION)
-        if (declared) {
-            TanyNotice(message = stringResource(R.string.return_waiting_customer), tone = TanyTone.WARNING, icon = DsR.drawable.ic_tany_clock)
+        // Lateness is the server's (`lateMinutes`) and never blocks the return.
+        booking.lateMinutes?.takeIf { it > 0 }?.let { late ->
+            TanyNotice(
+                title = stringResource(R.string.return_late_title, durationText(late)),
+                message = stringResource(R.string.return_late_message),
+                tone = TanyTone.DANGER,
+                icon = DsR.drawable.ic_tany_clock,
+            )
         }
         Column(Modifier.padding(top = 4.dp)) {
             Step(
@@ -727,6 +916,7 @@ private fun ReturnCard(booking: MerchantBookingDetail, ui: PickupUiState, action
                 enabled = !busy,
                 loading = ui.busy == PickupGesture.PHOTO,
                 showActionWhenDone = true,
+                supporting = if (!declared) stringResource(R.string.photo_guide) else null,
                 extra = if (!declared) {
                     { ConditionChoice(ui.photoCondition, actions.onCondition) }
                 } else {
@@ -787,9 +977,15 @@ private fun DepositCard(booking: MerchantBookingDetail, ui: PickupUiState, actio
             icon = if (handedBack) DsR.drawable.ic_tany_check else DsR.drawable.ic_tany_cash,
             caption = if (refundPickup?.partial == true) stringResource(R.string.deposit_partial) else stringResource(R.string.deposit_decided_by_tany),
         )
-        if (awaitingCustomer) {
-            TanyNotice(message = stringResource(R.string.deposit_waiting_customer), tone = TanyTone.WARNING, icon = DsR.drawable.ic_tany_clock)
+        refundPickup?.let {
+            Text(
+                stringResource(if (it.partial) R.string.deposit_decision_partial else R.string.deposit_decision_full),
+                style = TanyTheme.typography.label,
+                color = TanyTheme.colors.textMuted,
+            )
         }
+        // Deferred refund: the hand-back is offered once the SERVER recorded the customer's deposit QR.
+        val qrPending = refundPickup?.qrRequired == true && refundPickup.verifiedAt == null
         Column(Modifier.padding(top = 4.dp)) {
             if (refundPickup?.qrRequired == true) {
                 // A refused hand-back (`deposit_refund_qr_required`, check older than 15 min) offers the scan again.
@@ -806,7 +1002,8 @@ private fun DepositCard(booking: MerchantBookingDetail, ui: PickupUiState, actio
             Step(
                 label = stringResource(R.string.deposit_step_hand_back),
                 done = handedBack,
-                action = if (!handedBack && amount > MoneyAmount.ZERO) stringResource(R.string.deposit_hand_back_action) else null,
+                action = if (!handedBack && !qrPending && amount > MoneyAmount.ZERO) stringResource(R.string.deposit_hand_back_action) else null,
+                supporting = if (!handedBack) stringResource(R.string.deposit_customer_closes) else null,
                 actionIcon = DsR.drawable.ic_tany_cash,
                 actionStyle = TanyButtonStyle.PRIMARY,
                 onAction = { actions.handBackDeposit(amount) },
@@ -914,5 +1111,347 @@ private fun IncidentType?.label(): Int = when (this) {
     IncidentType.DAMAGED -> R.string.return_incident_damaged
     IncidentType.MISSING_ACCESSORY -> R.string.return_incident_missing
     IncidentType.VERY_DIRTY -> R.string.return_incident_dirty
+    IncidentType.DEPOSIT_DISPUTE -> R.string.incident_type_deposit_dispute
+    IncidentType.HANDOVER_DISPUTED -> R.string.incident_type_handover_disputed
+    IncidentType.ASSET_LOCATION_UNRESOLVED -> R.string.incident_type_location_unresolved
     else -> R.string.return_incident_other
+}
+
+/**
+ * Waiting for the customer's confirmation in TANY (server phase `*_awaiting_customer`): what the merchant did, the
+ * reassurance that the screen updates itself, and « Relancer le client » (server-throttled). « Toujours en attente »
+ * comes from the SERVER flag `customerConfirmationOverdue` only — never from a local timer. There is never a
+ * « confirm for the customer » action.
+ */
+@Composable
+private fun WaitingCard(booking: MerchantBookingDetail, ui: PickupUiState, actions: PickupActions) {
+    val overdue = booking.customerConfirmationOverdue
+    val tone = if (overdue) TanyTone.DANGER else TanyTone.WARNING
+    val (headline, message) = when (booking.phase) {
+        MerchantPhase.PICKUP_AWAITING_CUSTOMER -> stringResource(R.string.waiting_pickup_done) to stringResource(R.string.waiting_pickup_message)
+        MerchantPhase.RETURN_AWAITING_CUSTOMER -> stringResource(R.string.waiting_return_done) to stringResource(R.string.waiting_return_message)
+        else -> {
+            val amount = booking.deposit?.refundedAmount?.takeIf { !it.isZero } ?: booking.deposit?.toRefundAmount ?: MoneyAmount.ZERO
+            stringResource(R.string.waiting_deposit_done, LocalTanyFormatters.current.money(amount)) to stringResource(R.string.waiting_deposit_message)
+        }
+    }
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(ui.nudgeAvailableAt) {
+        while (System.currentTimeMillis() < ui.nudgeAvailableAt) {
+            now = System.currentTimeMillis()
+            delay(1_000)
+        }
+        now = System.currentTimeMillis()
+    }
+    val cooldown = ((ui.nudgeAvailableAt - now + 999) / 1_000).toInt().coerceAtLeast(0)
+    TanyCard(accent = tone, contentPadding = 18.dp) {
+        Text(headline, style = TanyTheme.typography.label, color = TanyTheme.colors.success.accent)
+        TanyNotice(
+            title = stringResource(if (overdue) R.string.waiting_overdue else R.string.step_waiting),
+            message = message,
+            tone = tone,
+            icon = DsR.drawable.ic_tany_clock,
+        )
+        booking.waitingMinutes?.takeIf { it > 0 }?.let {
+            Text(stringResource(R.string.waiting_since, durationText(it)), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Icon(painterResource(DsR.drawable.ic_tany_refresh), contentDescription = null, tint = TanyTheme.colors.textSubtle, modifier = Modifier.size(14.dp))
+            Text(stringResource(R.string.waiting_auto_refresh), style = TanyTheme.typography.caption, color = TanyTheme.colors.textSubtle)
+        }
+        TanyButton(
+            if (cooldown > 0) stringResource(R.string.nudge_cooldown, cooldown) else stringResource(R.string.nudge_action),
+            actions.nudge,
+            style = TanyButtonStyle.SECONDARY,
+            enabled = cooldown == 0,
+            loading = ui.nudging,
+            icon = DsR.drawable.ic_tany_bell,
+        )
+        ui.nudgeOutcome?.let {
+            Text(
+                stringResource(if (it == NudgeOutcome.SENT) R.string.nudge_sent else R.string.nudge_already_sent),
+                style = TanyTheme.typography.label,
+                color = TanyTheme.colors.textMuted,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
+        if (overdue) {
+            Text(stringResource(R.string.waiting_later_note), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
+            TanyButton(stringResource(R.string.waiting_back_today), actions.finish, style = TanyButtonStyle.TEXT)
+        }
+    }
+}
+
+/** The customer just confirmed (server timestamp appeared): brief animated success, then back to the list. */
+@Composable
+private fun SuccessCard(step: CompletedStep, booking: MerchantBookingDetail, onFinish: () -> Unit, onDismiss: () -> Unit) {
+    val formatters = LocalTanyFormatters.current
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+    val scale by animateFloatAsState(if (visible) 1f else 0.6f, label = "success-scale")
+    val view = LocalView.current
+    LaunchedEffect(step) { view.confirmHaptic() }
+    val (title, message) = when (step) {
+        CompletedStep.PICKUP -> stringResource(R.string.success_pickup_title) to
+            stringResource(R.string.success_pickup_message, booking.product.name, booking.customer.shortName)
+        CompletedStep.RETURN -> stringResource(R.string.success_return_title) to
+            stringResource(R.string.success_return_message, booking.product.name, booking.customer.shortName)
+        CompletedStep.DEPOSIT -> stringResource(R.string.success_deposit_title) to
+            stringResource(R.string.success_deposit_message, formatters.money(booking.deposit?.refundedAmount ?: MoneyAmount.ZERO), booking.customer.shortName)
+    }
+    TanyCard(contentPadding = 20.dp, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TanyIllustration(DsR.drawable.ic_tany_check, tone = TanyTone.SUCCESS, size = 88.dp, modifier = Modifier.scale(scale))
+            Text(title, style = TanyTheme.typography.title, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
+            Text(message, style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted, textAlign = TextAlign.Center)
+            // Server facts only: deposit still held after a pickup, asset sent to inspection after a return.
+            if (step == CompletedStep.PICKUP) {
+                booking.deposit?.heldAmount?.takeIf { !it.isZero }?.let {
+                    Text(stringResource(R.string.success_deposit_held, formatters.money(it)), style = TanyTheme.typography.label, textAlign = TextAlign.Center)
+                }
+            }
+            if (booking.asset?.status == AssetStatus.INSPECTION) {
+                Text(stringResource(R.string.success_inspection), style = TanyTheme.typography.label, color = TanyTheme.colors.warning.content, textAlign = TextAlign.Center)
+            }
+        }
+        TanyButton(stringResource(R.string.success_finish), onFinish)
+        TanyButton(stringResource(R.string.success_stay), onDismiss, style = TanyButtonStyle.TEXT)
+    }
+}
+
+/** Cancelled booking: who cancelled comes from the server history (`BOOKING_CANCELLED.actorRole`). */
+@Composable
+private fun CancelledCard(booking: MerchantBookingDetail) {
+    val actor = booking.history.lastOrNull { it.type == BookingEventType.BOOKING_CANCELLED }?.actorRole
+    TanyCard(accent = TanyTone.DANGER) {
+        TanyNotice(
+            title = stringResource(
+                when (actor) {
+                    ActorRole.CUSTOMER -> R.string.cancelled_by_customer
+                    ActorRole.TANY -> R.string.cancelled_by_tany
+                    else -> R.string.cancelled_generic
+                },
+            ),
+            message = stringResource(R.string.cancelled_do_not_hand_over),
+            tone = TanyTone.DANGER,
+        )
+    }
+}
+
+/** Disputed deposit / TANY review: no action is possible from TANY Collect; open incidents are listed. */
+@Composable
+private fun InterventionCard(booking: MerchantBookingDetail) {
+    val disputed = booking.phase == MerchantPhase.DEPOSIT_DISPUTED
+    TanyCard(accent = TanyTone.DANGER) {
+        TanyNotice(
+            title = stringResource(if (disputed) R.string.intervention_disputed_title else R.string.intervention_blocked_title),
+            message = stringResource(if (disputed) R.string.intervention_disputed_message else R.string.intervention_blocked_message),
+            tone = TanyTone.DANGER,
+            icon = DsR.drawable.ic_tany_shield,
+        )
+        if (booking.asset?.status == AssetStatus.INSPECTION) {
+            Text(
+                stringResource(R.string.intervention_inspection, ltrIsolated(booking.asset?.code ?: booking.assetCode.orEmpty())),
+                style = TanyTheme.typography.label,
+                color = TanyTheme.colors.warning.content,
+            )
+        }
+        Text(stringResource(R.string.intervention_informed), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
+    }
+}
+
+/** Problem reported to TANY during a pickup (type + optional words) — sent once, never retried. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun IncidentSheet(busy: Boolean, onDismiss: () -> Unit, onSubmit: (IncidentType, String) -> Unit) {
+    var type by rememberSaveable { mutableStateOf<IncidentType?>(null) }
+    var description by rememberSaveable { mutableStateOf("") }
+    TanyBottomSheet(onDismiss = onDismiss, dismissible = !busy) {
+        Text(stringResource(R.string.incident_sheet_title), style = TanyTheme.typography.title, modifier = Modifier.semantics { heading() })
+        Text(stringResource(R.string.incident_sheet_hint), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
+        FlowRow(
+            modifier = Modifier.selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            RETURN_INCIDENT_TYPES.forEach { t ->
+                TanyChoiceChip(label = stringResource(t.label()), selected = type == t, onClick = { type = t })
+            }
+        }
+        OutlinedTextField(
+            value = description,
+            onValueChange = { description = it.take(BookingDetailViewModel.INCIDENT_DESCRIPTION_MAX) },
+            label = { Text(stringResource(R.string.return_incident_description)) },
+            minLines = 2,
+            colors = tanyFieldColors(),
+            shape = TanyTheme.radii.large,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(stringResource(R.string.incident_sheet_footnote), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
+        TanyButton(
+            stringResource(R.string.incident_submit),
+            { type?.let { onSubmit(it, description) } },
+            enabled = type != null,
+            loading = busy,
+            icon = DsR.drawable.ic_tany_shield,
+        )
+        TanyButton(stringResource(DsR.string.tany_action_cancel), onDismiss, style = TanyButtonStyle.TEXT, enabled = !busy)
+    }
+}
+
+/**
+ * Details of the booking (iOS « Détails » sheet), all server data: operation photos, step timestamps, incidents and the
+ * history (event TYPES localized — the server's French labels are never shown).
+ */
+@Composable
+private fun BookingDetailsSections(booking: MerchantBookingDetail, endpoint: ApiEndpoint) {
+    var zoomed by remember { mutableStateOf<String?>(null) }
+    if (booking.photos.isNotEmpty()) {
+        TanySectionHeader(stringResource(R.string.details_photos), trailing = booking.photos.size.toString(), modifier = Modifier.padding(top = 4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(booking.photos, key = { it.id }) { photo ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    AsyncImage(
+                        model = endpoint.resolveMedia(photo.url),
+                        contentDescription = stringResource(if (photo.type == PhotoType.RETURN) R.string.details_photo_return else R.string.details_photo_pickup),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(110.dp)
+                            .clip(TanyTheme.radii.large)
+                            .clickable(role = Role.Image) { zoomed = photo.url },
+                    )
+                    Text(
+                        stringResource(if (photo.type == PhotoType.RETURN) R.string.details_photo_return else R.string.details_photo_pickup),
+                        style = TanyTheme.typography.caption,
+                        color = TanyTheme.colors.textMuted,
+                    )
+                }
+            }
+        }
+    }
+    val steps = buildList {
+        booking.pickup?.let { p ->
+            add(R.string.details_step_client_verified_pickup to p.clientVerifiedAt)
+            add(R.string.details_step_asset_verified_pickup to p.assetVerifiedAt)
+            add(R.string.details_step_handover_merchant to p.merchantConfirmedAt)
+            add(R.string.details_step_handover_customer to p.customerConfirmedAt)
+        }
+        booking.returnInfo?.let { r ->
+            add(R.string.details_step_client_verified_return to r.clientVerifiedAt)
+            add(R.string.details_step_asset_verified_return to r.assetVerifiedAt)
+            add(R.string.details_step_return_merchant to r.merchantConfirmedAt)
+            add(R.string.details_step_return_customer to r.customerConfirmedAt)
+        }
+        booking.deposit?.let { d ->
+            if (d.merchantRefundConfirmedAt != null || d.customerRefundConfirmedAt != null) {
+                add(R.string.details_step_deposit_merchant to d.merchantRefundConfirmedAt)
+                add(R.string.details_step_deposit_customer to d.customerRefundConfirmedAt)
+            }
+        }
+    }.filter { it.second != null }
+    if (steps.isNotEmpty()) {
+        TanySectionHeader(stringResource(R.string.details_steps), modifier = Modifier.padding(top = 4.dp))
+        TanyCard {
+            steps.forEach { (label, at) ->
+                TanyInfoRow(stringResource(label), icon = DsR.drawable.ic_tany_check) {
+                    at?.let { BusinessDateTimeText(it, style = TanyTheme.typography.label) }
+                }
+            }
+        }
+    }
+    if (booking.incidents.isNotEmpty()) {
+        TanySectionHeader(stringResource(R.string.details_incidents), trailing = booking.incidents.size.toString(), modifier = Modifier.padding(top = 4.dp))
+        TanyCard {
+            booking.incidents.forEachIndexed { i, incident ->
+                if (i > 0) TanyDivider()
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(incident.type.label()), style = TanyTheme.typography.bodyStrong, modifier = Modifier.weight(1f))
+                    TanyStatusChip(stringResource(incident.status.label()), incident.status.tone(), size = TanyChipSize.SMALL)
+                }
+                // User-generated text, verbatim.
+                incident.description?.let { Text(it, style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted, maxLines = 4) }
+                BusinessDateTimeText(incident.createdAt, style = TanyTheme.typography.caption, color = TanyTheme.colors.textSubtle)
+            }
+        }
+    }
+    if (booking.history.isNotEmpty()) {
+        TanySectionHeader(stringResource(R.string.details_history), modifier = Modifier.padding(top = 4.dp))
+        TanyCard {
+            booking.history.asReversed().forEach { entry ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(entry.type.label()), style = TanyTheme.typography.label)
+                        Text(stringResource(entry.actorRole.label()), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
+                    }
+                    BusinessDateTimeText(entry.at, style = TanyTheme.typography.caption, color = TanyTheme.colors.textSubtle)
+                }
+            }
+        }
+    }
+    zoomed?.let { url ->
+        Dialog(onDismissRequest = { zoomed = null }) {
+            AsyncImage(
+                model = endpoint.resolveMedia(url),
+                contentDescription = stringResource(R.string.details_photos),
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(TanyTheme.radii.large)
+                    .clickable { zoomed = null },
+            )
+        }
+    }
+}
+
+private fun IncidentStatus.label(): Int = when (this) {
+    IncidentStatus.RESOLVED -> R.string.incident_status_resolved
+    IncidentStatus.UNDER_REVIEW -> R.string.incident_status_review
+    else -> R.string.incident_status_open
+}
+
+private fun IncidentStatus.tone(): TanyTone = when (this) {
+    IncidentStatus.RESOLVED -> TanyTone.SUCCESS
+    IncidentStatus.UNDER_REVIEW -> TanyTone.INFO
+    else -> TanyTone.WARNING
+}
+
+private fun ActorRole.label(): Int = when (this) {
+    ActorRole.SELF -> R.string.actor_self
+    ActorRole.CUSTOMER -> R.string.actor_customer
+    ActorRole.TANY -> R.string.actor_tany
+    ActorRole.MERCHANT -> R.string.actor_merchant
+    ActorRole.SYSTEM, ActorRole.UNKNOWN -> R.string.actor_system
+}
+
+private fun BookingEventType.label(): Int = when (this) {
+    BookingEventType.BOOKING_CREATED -> R.string.event_booking_created
+    BookingEventType.PICKUP_QR_VERIFIED -> R.string.details_step_client_verified_pickup
+    BookingEventType.PICKUP_ASSET_VERIFIED -> R.string.details_step_asset_verified_pickup
+    BookingEventType.PICKUP_PHOTO_CAPTURED -> R.string.event_pickup_photo
+    BookingEventType.PAYMENT_CONFIRMED -> R.string.event_payment
+    BookingEventType.PICKUP_CONFIRMED_MERCHANT -> R.string.details_step_handover_merchant
+    BookingEventType.PICKUP_CONFIRMED_CUSTOMER -> R.string.details_step_handover_customer
+    BookingEventType.ASSET_COLLECTED -> R.string.event_asset_collected
+    BookingEventType.RETURN_QR_VERIFIED -> R.string.details_step_client_verified_return
+    BookingEventType.RETURN_ASSET_VERIFIED -> R.string.details_step_asset_verified_return
+    BookingEventType.RETURN_PHOTO_CAPTURED -> R.string.event_return_photo
+    BookingEventType.RETURN_CONFIRMED_MERCHANT -> R.string.details_step_return_merchant
+    BookingEventType.RETURN_CONFIRMED_CUSTOMER -> R.string.details_step_return_customer
+    BookingEventType.ASSET_RETURNED -> R.string.event_asset_returned
+    BookingEventType.DEPOSIT_REFUND_QR_VERIFIED -> R.string.event_deposit_qr
+    BookingEventType.DEPOSIT_REFUND_MERCHANT -> R.string.details_step_deposit_merchant
+    BookingEventType.DEPOSIT_REFUND_CUSTOMER -> R.string.details_step_deposit_customer
+    BookingEventType.DEPOSIT_DISPUTED -> R.string.event_deposit_disputed
+    BookingEventType.DEPOSIT_DECISION_RECORDED -> R.string.event_deposit_decision
+    BookingEventType.DEPOSIT_FORFEITED -> R.string.event_deposit_forfeited
+    BookingEventType.DEPOSIT_KEPT_PENDING -> R.string.event_deposit_kept
+    BookingEventType.DEPOSIT_REFUND_ADMIN_OVERRIDE -> R.string.event_deposit_override
+    BookingEventType.BOOKING_COMPLETED -> R.string.event_booking_completed
+    BookingEventType.BOOKING_CANCELLED -> R.string.event_booking_cancelled
+    BookingEventType.BOOKING_EXPIRED -> R.string.event_booking_expired
+    BookingEventType.INCIDENT_REPORTED -> R.string.event_incident_reported
+    BookingEventType.INCIDENT_RESOLVED -> R.string.event_incident_resolved
+    BookingEventType.MERCHANT_NUDGED_CUSTOMER -> R.string.event_nudged
+    BookingEventType.MERCHANT_OPENED_BOOKING -> R.string.event_opened
+    BookingEventType.UNKNOWN -> R.string.event_other
 }

@@ -109,9 +109,13 @@ data class AssetPointRef(val id: String, val name: String)
 data class AssetLifecycle(
     val status: AssetLifecycleStatus,
     val label: String? = null,
-    val percentage: Int? = null,
-    /** Shape not yet observed with a value (null when not configured) — typed in the equipment slice. */
-    val estimatedReplacementDate: String? = null,
+    /**
+     * Wear in % as computed by the server (`max(usage %, age %)`, NOT rounded: e.g. 33.33) — a Double, rendered as-is
+     * (an Int would make the whole asset sheet fail to decode as soon as a lifecycle is configured).
+     */
+    val percentage: Double? = null,
+    /** ISO instant from the server (`toISOString()`). */
+    @Serializable(with = InstantSerializer::class) val estimatedReplacementDate: Instant? = null,
     val estimatedRemainingUses: Int? = null,
 )
 

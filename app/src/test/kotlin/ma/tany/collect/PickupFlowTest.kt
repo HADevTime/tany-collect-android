@@ -73,9 +73,15 @@ class PickupFlowTest {
             return detail
         }
 
-        override suspend fun assets(pointId: String): ApiResult<AssetsResponse> = ApiResult.Failure(ApiError.Unauthorized)
+        override suspend fun assets(pointId: String, query: String?, filter: ma.tany.core.model.collect.AssetFilter?): ApiResult<AssetsResponse> = ApiResult.Failure(ApiError.Unauthorized)
 
         override suspend fun asset(pointId: String, assetId: String): ApiResult<ma.tany.core.model.collect.AssetDetail> =
+            ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun assetLookup(pointId: String, code: String): ApiResult<ma.tany.core.model.collect.AssetDetail> =
+            ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun incidents(pointId: String): ApiResult<ma.tany.core.model.collect.IncidentsResponse> =
             ApiResult.Failure(ApiError.Unauthorized)
     }
 
@@ -112,7 +118,7 @@ class PickupFlowTest {
         }
 
         override suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail> {
-            calls += "handover"
+            calls += "handover"; lastHandoverCondition = condition
             return result
         }
 
@@ -124,6 +130,20 @@ class PickupFlowTest {
         override suspend fun depositRefund(bookingId: String, collectPointId: String, expectedAmount: MoneyAmount): ApiResult<MerchantBookingDetail> {
             calls += "deposit"; lastRefund = expectedAmount
             return result
+        }
+
+        var lastHandoverCondition: AssetCondition? = null
+        var lastIncident: ma.tany.core.model.collect.IncidentBody? = null
+        var nudgeResult: ApiResult<ma.tany.core.model.collect.NudgeResponse> = ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun reportIncident(bookingId: String, body: ma.tany.core.model.collect.IncidentBody): ApiResult<MerchantBookingDetail> {
+            calls += "incident"; lastIncident = body
+            return result
+        }
+
+        override suspend fun nudge(bookingId: String, collectPointId: String): ApiResult<ma.tany.core.model.collect.NudgeResponse> {
+            calls += "nudge"
+            return nudgeResult
         }
     }
 

@@ -62,6 +62,7 @@ import ma.tany.collect.feature.auth.OtpScreen
 import ma.tany.collect.feature.auth.PhoneScreen
 import ma.tany.collect.feature.booking.BookingDetailScreen
 import ma.tany.collect.feature.equipment.AssetDetailScreen
+import ma.tany.collect.feature.equipment.AssetLookupScreen
 import ma.tany.collect.feature.equipment.EquipmentScreen
 import ma.tany.collect.feature.notifications.NotificationsScreen
 import ma.tany.collect.feature.revenue.RevenueScreen
@@ -275,7 +276,21 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
             composable<ActivityRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.ACTIVITY })) {
                 ActivityScreen(pointId = pointId, onOpenBooking = openBooking)
             }
-            composable<EquipmentRoute> { EquipmentScreen(pointId = pointId, onOpenAsset = { navController.navigate(AssetRoute(it)) }) }
+            composable<EquipmentRoute> {
+                EquipmentScreen(
+                    pointId = pointId,
+                    onOpenAsset = { navController.navigate(AssetRoute(it)) },
+                    onScanAsset = { navController.navigate(AssetLookupRoute) },
+                )
+            }
+            composable<AssetLookupRoute> {
+                AssetLookupScreen(
+                    pointId = pointId,
+                    pointName = pointName,
+                    onBack = { navController.popBackStack() },
+                    onFound = { id -> navController.navigate(AssetRoute(id)) { popUpTo<AssetLookupRoute> { inclusive = true } } },
+                )
+            }
             composable<AssetRoute> {
                 AssetDetailScreen(pointId = pointId, onBack = { navController.popBackStack() }, onOpenBooking = openBooking)
             }

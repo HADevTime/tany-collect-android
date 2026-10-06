@@ -2,8 +2,11 @@ package ma.tany.core.network
 
 import ma.tany.core.model.collect.AssetScanBody
 import ma.tany.core.model.collect.DepositRefundBody
+import ma.tany.core.model.collect.CollectPointBody
 import ma.tany.core.model.collect.HandoverBody
+import ma.tany.core.model.collect.IncidentBody
 import ma.tany.core.model.collect.MerchantBookingDetail
+import ma.tany.core.model.collect.NudgeResponse
 import ma.tany.core.model.collect.PaymentBody
 import ma.tany.core.model.collect.ReturnBody
 import ma.tany.core.model.collect.ScanBody
@@ -53,6 +56,15 @@ interface CollectOperationsRepository {
      * server refuses (`deposit_amount_changed` + `currentAmount`) and nothing is recorded.
      */
     suspend fun depositRefund(bookingId: String, collectPointId: String, expectedAmount: MoneyAmount): ApiResult<MerchantBookingDetail>
+
+    /**
+     * `POST bookings/{id}/incidents` — problem reported to TANY during a pickup (allowed by the server while the booking
+     * is RESERVED / COLLECTED; a return problem goes inside the return statement). Never retried.
+     */
+    suspend fun reportIncident(bookingId: String, body: IncidentBody): ApiResult<MerchantBookingDetail>
+
+    /** `POST bookings/{id}/nudge` — reminds the customer to confirm; throttled server-side (`nudged:false` is not an error). */
+    suspend fun nudge(bookingId: String, collectPointId: String): ApiResult<NudgeResponse>
 }
 
 class DefaultCollectOperationsRepository(private val api: TanyCollectApi) : CollectOperationsRepository {
@@ -81,6 +93,12 @@ class DefaultCollectOperationsRepository(private val api: TanyCollectApi) : Coll
 
     override suspend fun depositRefund(bookingId: String, collectPointId: String, expectedAmount: MoneyAmount): ApiResult<MerchantBookingDetail> =
         apiCall { api.depositRefund(bookingId, DepositRefundBody(collectPointId, expectedAmount)).booking }
+
+    override suspend fun reportIncident(bookingId: String, body: IncidentBody): ApiResult<MerchantBookingDetail> =
+        apiCall { api.reportIncident(bookingId, body).booking }
+
+    override suspend fun nudge(bookingId: String, collectPointId: String): ApiResult<NudgeResponse> =
+        apiCall { api.nudge(bookingId, CollectPointBody(collectPointId)) }
 }
 
 /** Multipart layout of `POST bookings/{id}/photos` (contract field names). */

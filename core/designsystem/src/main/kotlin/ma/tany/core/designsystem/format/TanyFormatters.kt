@@ -5,6 +5,7 @@ import ma.tany.core.model.common.MoneyAmount
 import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -51,11 +52,25 @@ class TanyFormatters(val language: TanyLanguage) {
     /** « 49,50 DH / jour » style daily price. */
     fun moneyPerDay(amount: MoneyAmount, perDayLabel: String): String = "${money(amount)} $perDayLabel"
 
+    /** Server clock time (opening hours, already Africa/Casablanca) as `HH:mm`. */
+    fun clock(time: LocalTime): String = TIME.format(time)
+
     /** Business clock time (`HH:mm`, 24 h) in Africa/Casablanca. */
     fun businessTime(instant: Instant): String = TIME.format(BusinessTime.at(instant))
 
     /** « lun. 5 oct. » — civil business day. */
     fun businessDay(date: LocalDate): String = DateTimeFormatter.ofPattern("EEE d MMM", locale).format(date)
+
+    /** « Lundi 5 octobre » — header date of a civil business day (capitalized for the locale). */
+    fun businessLongDay(date: LocalDate): String =
+        DateTimeFormatter.ofPattern("EEEE d MMMM", locale).format(date).replaceFirstChar { it.titlecase(locale) }
+
+    /** « 09:00–11:00 » — same-day window clock times in Africa/Casablanca (falls back to [businessWindow]). */
+    fun businessTimeRange(start: Instant, end: Instant): String {
+        val s = BusinessTime.at(start)
+        val e = BusinessTime.at(end)
+        return if (s.toLocalDate() == e.toLocalDate()) "${TIME.format(s)}–${TIME.format(e)}" else businessWindow(start, end)
+    }
 
     /** « lun. 5 oct. · 09:00 » — instant shown in Africa/Casablanca. */
     fun businessDayTime(instant: Instant): String {

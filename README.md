@@ -75,6 +75,21 @@ Demo merchant (DEV/STAGING, OTP shown on screen outside PROD): `+212600000002` (
 Contract fixtures: `core/model/src/test/resources/fixtures/real/` — captured from the real backend
 (`tany-backend/scripts/mobile-e2e-server.ts`, flags ON, tokens replaced) and decoded by `RealCollectFixturesTest`.
 
+## Design system (premium)
+
+- **Tokens** (`core/designsystem/theme`): layered surfaces (`page` < `surface` < `elevated`, clearly separated in dark
+  mode), three text levels (`textPrimary` / `textMuted` / `textSubtle`, all ≥ 4.5:1 — `PremiumComponentsTest`), TANY
+  pink as an ACCENT (solid only for badges / brand marks; `accentContainer` for selection and ACTION statuses), a
+  `largeTitle` / `overline` / `amountHero` / `codeLarge` type scale, 20 dp card radius.
+- **Components**: `TanyCard` (outlined · filled · chrome, optional leading status bar), `TanyLargeHeader`,
+  `TanySectionHeader`, `TanyRow` (tinted icon, value, destructive), `TanyMetricTile`, `TanyAmountPanel` (the key server
+  amount of a financial step), `TanyTimelineStep` (done ✓ · to do ○ · waiting ◷, state exposed as text),
+  `TanyNotice`, `TanySegmentedControl`, `TanySearchField`, `TanyChoiceChip`, `TanyCheckRow`, `TanyAvatar`, skeletons
+  (`TanyListSkeleton`, `TanyDetailSkeleton`) and richer empty / error states.
+- **Presentation only**: Today groups the SERVER phases (to handle at the counter · waiting for the customer or TANY ·
+  later) keeping the server order; Activity and notifications are split by business day (Africa/Casablanca) without
+  reordering; the equipment filter uses the server's `group`. No business rule is derived client-side.
+
 ## Deliberate MVP choices
 
 - The design-system foundation is duplicated in `tany-android` and `tany-collect-android` on purpose (no shared

@@ -27,9 +27,9 @@ import ma.tany.collect.core.ui.messageRes
 import ma.tany.core.designsystem.R as DsR
 import ma.tany.core.designsystem.component.TanyCard
 import ma.tany.core.designsystem.component.TanyErrorState
-import ma.tany.core.designsystem.component.TanyLoadingState
+import ma.tany.core.designsystem.component.TanyLargeHeader
+import ma.tany.core.designsystem.component.TanyListSkeleton
 import ma.tany.core.designsystem.component.TanyRow
-import ma.tany.core.designsystem.component.TanyTopBar
 import ma.tany.core.model.collect.MerchantPoint
 import ma.tany.core.network.ApiResult
 import ma.tany.core.network.CollectRepository
@@ -69,17 +69,17 @@ class PointPickerViewModel @Inject constructor(
 fun PointPickerScreen(viewModel: PointPickerViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        TanyTopBar(title = stringResource(R.string.point_select_title), chrome = true)
+        TanyLargeHeader(title = stringResource(R.string.point_select_title), subtitle = stringResource(R.string.point_select_subtitle))
         when (val s = state) {
-            LoadState.Loading -> TanyLoadingState()
+            LoadState.Loading -> TanyListSkeleton(rows = 3, withMedia = false)
             is LoadState.Failed -> TanyErrorState(stringResource(s.error.messageRes()), onRetry = viewModel::load)
-            is LoadState.Loaded -> LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            is LoadState.Loaded -> LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(s.value, key = { it.id }) { point ->
                     TanyCard(contentPadding = 0.dp) {
                         TanyRow(
                             title = point.name,
                             subtitle = "${point.address} · ${point.city}",
-                            leadingIcon = DsR.drawable.ic_tany_box,
+                            leadingIcon = DsR.drawable.ic_tany_store,
                             onClick = { viewModel.select(point) },
                         )
                     }

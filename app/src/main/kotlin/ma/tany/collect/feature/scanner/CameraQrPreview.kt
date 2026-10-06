@@ -1,6 +1,7 @@
 package ma.tany.collect.feature.scanner
 
 import androidx.annotation.OptIn
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
@@ -9,6 +10,9 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -30,11 +34,18 @@ import java.util.concurrent.Executors
  */
 @OptIn(ExperimentalGetImage::class)
 @Composable
-fun CameraQrPreview(onCode: (String) -> Unit, modifier: Modifier = Modifier) {
+fun CameraQrPreview(
+    onCode: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    torchOn: Boolean = false,
+    onTorchAvailable: (Boolean) -> Unit = {},
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnCode by rememberUpdatedState(onCode)
+    val currentOnTorchAvailable by rememberUpdatedState(onTorchAvailable)
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
+    var camera by remember { mutableStateOf<Camera?>(null) }
 
     DisposableEffect(lifecycleOwner) {
         val analysisExecutor = Executors.newSingleThreadExecutor()
@@ -63,16 +74,24 @@ fun CameraQrPreview(onCode: (String) -> Unit, modifier: Modifier = Modifier) {
                         .addOnCompleteListener { proxy.close() }
                 }
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                val bound = cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                camera = bound
+                currentOnTorchAvailable(bound.cameraInfo.hasFlashUnit())
             },
             ContextCompat.getMainExecutor(context),
         )
 
         onDispose {
+            camera = null
             provider?.unbindAll()
             scanner.close()
             analysisExecutor.shutdown()
         }
+    }
+
+    // Torch for dim counters (no-op on devices without a flash unit).
+    LaunchedEffect(camera, torchOn) {
+        camera?.takeIf { it.cameraInfo.hasFlashUnit() }?.cameraControl?.enableTorch(torchOn)
     }
 
     AndroidView(factory = { previewView }, modifier = modifier)

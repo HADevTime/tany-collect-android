@@ -1,9 +1,12 @@
 package ma.tany.core.designsystem.component
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -20,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -50,7 +54,7 @@ fun TanyBottomSheet(
         containerColor = TanyTheme.colors.elevated,
         contentColor = TanyTheme.colors.textPrimary,
         scrimColor = TanyTheme.colors.scrim,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = TanyTheme.colors.border) },
+        dragHandle = { BottomSheetDefaults.DragHandle(color = TanyTheme.colors.textSubtle.copy(alpha = 0.4f)) },
     ) {
         Column(
             modifier = Modifier
@@ -84,6 +88,8 @@ data class ConfirmationRequest(
     val kind: ConfirmationKind = ConfirmationKind.STANDARD,
     val amount: MoneyAmount? = null,
     @DrawableRes val icon: Int? = null,
+    /** Label above the amount of a FINANCIAL confirmation (« Montant reçu en espèces »). */
+    val amountLabel: String? = null,
 )
 
 /**
@@ -126,26 +132,47 @@ fun rememberConfirmationState(): ConfirmationState = remember { ConfirmationStat
 fun ConfirmationSheetHost(state: ConfirmationState, onConfirm: (ConfirmationRequest) -> Unit) {
     val request = state.current ?: return
     TanyBottomSheet(onDismiss = state::dismiss, dismissible = !state.processing) {
+        val tone = when (request.kind) {
+            ConfirmationKind.DESTRUCTIVE -> TanyTone.DANGER
+            ConfirmationKind.FINANCIAL -> TanyTone.SUCCESS
+            ConfirmationKind.STANDARD -> TanyTone.NEUTRAL
+        }
+        val icon = request.icon ?: when (request.kind) {
+            ConfirmationKind.DESTRUCTIVE -> R.drawable.ic_tany_warning
+            ConfirmationKind.FINANCIAL -> R.drawable.ic_tany_cash
+            ConfirmationKind.STANDARD -> R.drawable.ic_tany_check
+        }
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            request.icon?.let {
-                val tone = if (request.kind == ConfirmationKind.DESTRUCTIVE) TanyTone.DANGER else TanyTone.NEUTRAL
-                TanyIconContainer(icon = it, contentDescription = null, container = tone.colors().container, tint = tone.colors().content, size = 56.dp)
-            }
+            TanyIllustration(icon = icon, tone = tone, size = 72.dp)
             Text(
                 request.title,
                 style = TanyTheme.typography.title,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() },
             )
-            if (request.kind == ConfirmationKind.FINANCIAL && request.amount != null) {
-                MoneyText(request.amount, style = TanyTheme.typography.amountLarge)
-            }
             Text(request.message, style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted, textAlign = TextAlign.Center)
         }
+        if (request.kind == ConfirmationKind.FINANCIAL && request.amount != null) {
+            // The exact server amount is the visual focus of a money confirmation.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(TanyTheme.radii.large)
+                    .background(TanyTheme.colors.neutral)
+                    .semantics(mergeDescendants = true) {}
+                    .padding(vertical = 16.dp, horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                request.amountLabel?.let { Text(it, style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted, textAlign = TextAlign.Center) }
+                MoneyText(request.amount, style = TanyTheme.typography.amountHero)
+            }
+        }
+        Spacer(Modifier.height(4.dp))
         TanyButton(
             text = request.confirmLabel,
             style = if (request.kind == ConfirmationKind.DESTRUCTIVE) TanyButtonStyle.DESTRUCTIVE else TanyButtonStyle.PRIMARY,

@@ -1,7 +1,11 @@
 package ma.tany.collect.feature.auth
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -9,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,11 +24,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.LayoutDirection
@@ -45,9 +52,13 @@ import ma.tany.collect.R
 import ma.tany.collect.core.AppEnvironment
 import ma.tany.collect.core.preferences.CollectPreferences
 import ma.tany.collect.core.ui.messageRes
+import ma.tany.core.designsystem.R as DsR
 import ma.tany.core.designsystem.component.TanyButton
 import ma.tany.core.designsystem.component.TanyButtonStyle
-import ma.tany.core.designsystem.component.TanyTopBar
+import ma.tany.core.designsystem.component.TanyIconContainer
+import ma.tany.core.designsystem.component.TanyNotice
+import ma.tany.core.designsystem.component.TanyTone
+import ma.tany.core.designsystem.component.tanyFieldColors
 import ma.tany.core.designsystem.format.ltrIsolated
 import ma.tany.core.designsystem.theme.TanyTheme
 import ma.tany.core.network.ApiError
@@ -117,41 +128,59 @@ class OtpViewModel @Inject constructor(
     }
 }
 
+/** Auth canvas: brand mark, large title, explanation, then the form. */
 @Composable
-private fun AuthLayout(title: String, onBack: (() -> Unit)?, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize()) {
-        TanyTopBar(title = title, onBack = onBack, chrome = true)
+private fun AuthLayout(title: String, subtitle: String, onBack: (() -> Unit)?, content: @Composable () -> Unit) {
+    val colors = TanyTheme.colors
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .imePadding(),
+    ) {
+        Box(Modifier.heightIn(min = 56.dp).padding(horizontal = 4.dp), contentAlignment = Alignment.CenterStart) {
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(painterResource(DsR.drawable.ic_tany_back), contentDescription = stringResource(R.string.auth_back), tint = colors.textPrimary)
+                }
+            }
+        }
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .imePadding()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) { content() }
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TanyIconContainer(DsR.drawable.ic_tany_store, contentDescription = null, container = colors.chrome, tint = colors.onChrome, size = 44.dp)
+                Text(stringResource(R.string.auth_brand), style = TanyTheme.typography.headline, color = colors.textPrimary)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(title, style = TanyTheme.typography.largeTitle, modifier = Modifier.semantics { heading() })
+                Text(subtitle, style = TanyTheme.typography.body, color = colors.textMuted)
+            }
+            content()
+        }
     }
 }
 
 @Composable
 private fun ErrorLine(error: ApiError?) {
     if (error == null) return
-    Text(
-        stringResource(error.messageRes()),
-        color = TanyTheme.colors.danger.accent,
-        style = TanyTheme.typography.label,
-        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-    )
+    TanyNotice(message = stringResource(error.messageRes()), tone = TanyTone.DANGER)
 }
 
 @Composable
-private fun LtrField(value: String, onValueChange: (String) -> Unit, label: String, keyboardType: KeyboardType) {
+private fun LtrField(value: String, onValueChange: (String) -> Unit, label: String, keyboardType: KeyboardType, code: Boolean = false) {
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
             label = { Text(label) },
             singleLine = true,
+            textStyle = if (code) TanyTheme.typography.codeLarge else TanyTheme.typography.headline,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            colors = tanyFieldColors(),
+            shape = TanyTheme.radii.large,
             modifier = Modifier.fillMaxWidth(),
         )
     }
@@ -162,8 +191,7 @@ fun PhoneScreen(onCodeSent: (phone: String, devCode: String?) -> Unit, viewModel
     val state by viewModel.state.collectAsStateWithLifecycle()
     var phone by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(viewModel) { viewModel.codeSent.collect { (normalized, devCode) -> onCodeSent(normalized, devCode) } }
-    AuthLayout(stringResource(R.string.auth_phone_title), onBack = null) {
-        Text(stringResource(R.string.auth_phone_subtitle), style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted)
+    AuthLayout(stringResource(R.string.auth_phone_title), stringResource(R.string.auth_phone_subtitle), onBack = null) {
         LtrField(phone, { phone = it }, stringResource(R.string.auth_phone_label), KeyboardType.Phone)
         ErrorLine(state.error)
         TanyButton(stringResource(R.string.auth_continue), { viewModel.submit(phone) }, enabled = phone.isNotBlank(), loading = state.submitting)
@@ -175,12 +203,11 @@ fun PhoneScreen(onCodeSent: (phone: String, devCode: String?) -> Unit, viewModel
 fun OtpScreen(onBack: () -> Unit, viewModel: OtpViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var code by rememberSaveable { mutableStateOf("") }
-    AuthLayout(stringResource(R.string.auth_otp_title), onBack) {
-        Text(stringResource(R.string.auth_otp_subtitle, ltrIsolated(viewModel.phone)), style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted)
+    AuthLayout(stringResource(R.string.auth_otp_title), stringResource(R.string.auth_otp_subtitle, ltrIsolated(viewModel.phone)), onBack) {
         viewModel.devCode?.let {
-            Text(stringResource(R.string.auth_dev_code, ltrIsolated(it)), style = TanyTheme.typography.code, color = TanyTheme.colors.info.content)
+            TanyNotice(message = stringResource(R.string.auth_dev_code, ltrIsolated(it)), tone = TanyTone.INFO)
         }
-        LtrField(code, { code = it.filter(Char::isDigit) }, stringResource(R.string.auth_otp_label), KeyboardType.NumberPassword)
+        LtrField(code, { code = it.filter(Char::isDigit) }, stringResource(R.string.auth_otp_label), KeyboardType.NumberPassword, code = true)
         ErrorLine(state.error)
         TanyButton(stringResource(R.string.auth_verify), { viewModel.verify(code) }, enabled = code.isNotBlank(), loading = state.submitting)
         TanyButton(stringResource(R.string.auth_resend), viewModel::resend, style = TanyButtonStyle.TEXT)

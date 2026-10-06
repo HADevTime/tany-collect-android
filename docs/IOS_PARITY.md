@@ -18,15 +18,15 @@ Legend:
 | Feature | iOS | Android | Parity | Notes |
 |---|---|---|---|---|
 | **Branding** — launcher icon | `AppIconCollect-1024` | Same artwork as an adaptive icon (foreground + `#23262B` background + themed monochrome) | ✅ | Same icon for all variants, as on iOS |
-| **Navigation** — tabs | Today / Scanner (centre, accent) / Activity / Account | Today / Scanner (accent pill) / Activity / Equipment* / Account | ≈ | *Equipment stays a tab when the module flag is ON (iOS: inside Account). Documented divergence |
+| **Navigation** — tabs | Today / Scanner (centre, accent) / Activity / Account | Today / Activity / **Scanner action** (centre) / Equipment* / Account | ≈ | Scanner is an action opening a full-screen scanner, not a tab (docs/UX_REWORK.md § 5). *Equipment is a tab when the module flag is ON (iOS: inside Account) |
 | Navigation — Today badge | late + blocked | `counts.late + counts.blocked` (server counters), plural spoken label | ✅ | |
 | Navigation — point switch resets navigation | `selectPoint` + `resetNavigation` | `key(activePointId)` recreates the whole shell (back stacks, ViewModels) | ✅ | No data of the previous point survives |
 | **Today** — header | short name, opening state, "n terminées" | shortName, structured `openingState` label (never the FR prose), completed today, Scanner button, bell only when inbox ON | ✅ | |
 | Today — KPI tiles | 4 tiles, tap scrolls to section | 2×2 server counters, tap scrolls to section | ✅ | |
-| Today — sections | late, attention, to collect, to return, awaiting customer, no-show | Same, mapped 1:1 to the server counters; to collect / to return always shown with an empty line | ✅ | |
-| Today — row anatomy | time · kind, short status, product, multi-day period, ref + amount, countdown | Same + asset code under the thumbnail, exception line from server fields | ✅ | |
+| Today — sections | late, attention, to collect, to return, awaiting customer, no-show | Hero + « À traiter maintenant » (late + TANY review), to collect / to return today, awaiting customer, no-show; hero never repeated, empty groups hidden | ✅ | |
+| Today — row anatomy | time · kind, short status, product, multi-day period, ref + amount, countdown | Time first (large), status, 80 dp image, full product name, unit code, customer · ref, cash only when relevant, exception line | ✅ | |
 | Today — refresh | poll 30 s + foreground | silent refresh on resume + every 30 s, pull-to-refresh, "Mis à jour à", stale/offline notice | ✅ | |
-| Today — "next operation" hero | `NextOperation.pick` | — | ⛔ | Client-side priority |
+| Today — "next operation" hero | `NextOperation.pick` | Hero card from the server phase tier (late → in progress → open now → upcoming → awaiting) + server time | ≈ | Same mental model; ordering of server phases only, never a client business rule |
 | Today — transition toasts | `detectTransitions` | — | ⛔ | Client inference; push/inbox come from the server |
 | Today — local reminders | `CollectNotifications.sync` | — | ⛔ | Notification content is never computed locally |
 | Today — offline disk cache | yes | memory only | 🕓 | |
@@ -37,7 +37,7 @@ Legend:
 | Scanner — camera unavailable | fallback | `CameraUnavailablePanel` → manual input | ✅ | |
 | Scanner — QR payload | opaque | Opaque (trim only), never echoed | ✅ | |
 | Scanner — asset label lookup | Account › Equipment | Equipment › scan (`assets/lookup?code=`) | ✅ | |
-| **Pickup** — checklist | one step at a time (client order) | Server-validated checklist (`actions`), current step emphasised | ≈ | Step order is never decided locally |
+| **Pickup** — guided flow | one step at a time | One step at a time: the first missing server fact (QR → label → photo → cash → handover → customer); before the window a preparation view without any control | ✅ | Step order = backend guards |
 | Pickup — cash "J'ai reçu X" | financial confirmation | `ConfirmationSheetHost` FINANCIAL, server amount sent back exactly | ✅ | |
 | Pickup — photos + condition | yes | Private cache + FileProvider, condition, guide text, zoom; deleted after upload | ✅ | |
 | Pickup — handover condition | sends condition | Sends `pickup.condition` recorded by the server | ✅ | **Bug fixed** (was null) |
@@ -98,9 +98,8 @@ Legend:
 ## Intentional differences (summary)
 
 1. Equipment stays a bottom tab when the module is ON (Android navigation convention); iOS reaches it from Account.
-2. Pickup and return use a server-validated checklist instead of iOS's client-ordered one-step flow.
+2. Pickup and return are guided one step at a time like iOS, but the current step is always the first missing SERVER fact (their order is the backend's own guard order).
 3. iOS client-side rules are not copied:
-   - next-operation picking;
    - transition toasts and local reminders;
    - the local 3-minute overdue timer;
    - the 2 h countdown threshold;

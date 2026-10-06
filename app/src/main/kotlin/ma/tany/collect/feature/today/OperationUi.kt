@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,7 +25,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import ma.tany.collect.R
@@ -36,6 +34,7 @@ import ma.tany.core.designsystem.component.MoneyText
 import ma.tany.core.designsystem.component.ProductImageSurface
 import ma.tany.core.designsystem.component.TanyCard
 import ma.tany.core.designsystem.component.TanyChipSize
+import ma.tany.core.designsystem.component.TanyCodePill
 import ma.tany.core.designsystem.component.TanyStatusChip
 import ma.tany.core.designsystem.component.TanyTone
 import ma.tany.core.designsystem.component.colors
@@ -146,6 +145,76 @@ fun groupBySection(operations: List<Operation>): List<Pair<OperationSection, Lis
         val items = operations.filter { it.phase.ui().section == section }.sortedBy { it.referenceTime() }
         if (items.isEmpty() && section !in ALWAYS_SHOWN_SECTIONS) null else section to items
     }
+
+/**
+ * Priority tier of an operation for the Home hero, from its SERVER phase only: late return → operation under way →
+ * operation open now (pickup window open, return due, deposit to hand back) → upcoming → waiting for the customer.
+ * TANY reviews, no-shows and closed rows are never the hero (they stay in their sections). Null = not a hero candidate.
+ */
+fun Operation.heroTier(): Int? = when (phase) {
+    MerchantPhase.RETURN_LATE -> 0
+    MerchantPhase.PICKUP_IN_PROGRESS, MerchantPhase.RETURN_IN_PROGRESS -> 1
+    MerchantPhase.PICKUP_READY, MerchantPhase.RETURN_DUE, MerchantPhase.DEPOSIT_TO_REFUND -> 2
+    MerchantPhase.PICKUP_UPCOMING, MerchantPhase.WITH_CUSTOMER -> 3
+    MerchantPhase.PICKUP_AWAITING_CUSTOMER, MerchantPhase.RETURN_AWAITING_CUSTOMER, MerchantPhase.DEPOSIT_AWAITING_CUSTOMER -> 4
+    else -> null
+}
+
+/** The Home hero: best [heroTier], then the earliest server [referenceTime]. Ordering of server data only. */
+fun pickHero(operations: List<Operation>): Operation? =
+    operations.filter { it.heroTier() != null }.minWithOrNull(compareBy<Operation>({ it.heroTier() }, { it.referenceTime() }))
+
+/** Home lists, in priority order. « À traiter maintenant » gathers the late returns and TANY reviews. */
+enum class HomeSection(val sections: Set<OperationSection>) {
+    NOW(setOf(OperationSection.LATE, OperationSection.ATTENTION)),
+    TO_COLLECT(setOf(OperationSection.TO_COLLECT)),
+    TO_RETURN(setOf(OperationSection.TO_RETURN)),
+    AWAITING_CUSTOMER(setOf(OperationSection.AWAITING_CUSTOMER)),
+    NO_SHOW(setOf(OperationSection.NO_SHOW)),
+}
+
+/**
+ * Home sections without the hero (never shown twice) and without empty groups; each group in server-time order. Every
+ * other operation of the server list appears exactly once.
+ */
+fun homeSections(operations: List<Operation>, hero: Operation?): List<Pair<HomeSection, List<Operation>>> {
+    val rest = operations.filter { it.id != hero?.id }
+    return HomeSection.entries.mapNotNull { home ->
+        val items = rest.filter { it.phase.ui().section in home.sections }.sortedBy { it.referenceTime() }
+        if (items.isEmpty()) null else home to items
+    }
+}
+
+@StringRes
+fun HomeSection.title(): Int = when (this) {
+    HomeSection.NOW -> R.string.home_section_now
+    HomeSection.TO_COLLECT -> R.string.home_section_to_collect
+    HomeSection.TO_RETURN -> R.string.home_section_to_return
+    HomeSection.AWAITING_CUSTOMER -> R.string.today_section_awaiting
+    HomeSection.NO_SHOW -> R.string.today_section_no_show
+}
+
+/** Money worth showing on a card, with its meaning — null when no cash is involved in the current phase. */
+data class RowMoney(@StringRes val label: Int, val amount: MoneyAmount)
+
+fun Operation.rowMoney(): RowMoney? = when (phase) {
+    MerchantPhase.PICKUP_UPCOMING, MerchantPhase.PICKUP_READY -> RowMoney(R.string.row_money_to_collect, pricing?.totalDueAtPickup ?: rentalAmount)
+    MerchantPhase.DEPOSIT_TO_REFUND -> (depositRefundAmount ?: depositAmount)?.let { RowMoney(R.string.row_money_deposit_back, it) }
+    else -> null
+}
+
+/**
+ * The time a card puts forward (server instants): the pickup window, the return deadline, the waiting start, or the
+ * completion time. [end] null = a single time.
+ */
+data class RowTime(val start: Instant, val end: Instant?, @StringRes val prefix: Int?)
+
+fun Operation.rowTime(): RowTime = when {
+    completedAt != null -> RowTime(completedAt!!, null, null)
+    phase.ui().section == OperationSection.AWAITING_CUSTOMER -> RowTime(waitingSince ?: scheduledAt, null, R.string.row_time_since)
+    kind == OperationKind.RETURN -> RowTime(returnDeadline, null, R.string.row_time_before)
+    else -> RowTime(pickupWindowStart, pickupWindowEnd, null)
+}
 
 @StringRes
 fun OperationSection.title(): Int = when (this) {
@@ -259,9 +328,9 @@ fun Operation.exceptionLine(): Pair<String, TanyTone>? = when (phase) {
 }
 
 /**
- * Operation row (iOS « ActivityOperationRow »): WHO / WHAT / WHEN at a glance — thumbnail with the asset label code to
- * find, « 09:00 · Collecte » + short server status, product, multi-day period, reference + amount, then one exception
- * or countdown line. The whole row opens the operation (no inline action: the server state drives the flow).
+ * Operation card content, ordered for a 2-second read: TIME (large) + server status, operation type, the object (image
+ * large enough to recognise it, FULL product name, unit code), customer / reference, cash only when it matters, then
+ * one exception or countdown line. The whole card opens the operation (no inline action: the server state drives it).
  */
 @Composable
 fun OperationRowContent(operation: Operation, endpoint: ApiEndpoint, modifier: Modifier = Modifier, showDay: Boolean = false) {
@@ -269,73 +338,70 @@ fun OperationRowContent(operation: Operation, endpoint: ApiEndpoint, modifier: M
     val colors = TanyTheme.colors
     val phase = operation.phase.ui()
     val period = operation.effectiveUsagePeriod()
-    val time = operation.completedAt ?: operation.referenceTime()
-    val timeText = if (showDay) formatters.businessDayTime(time) else formatters.businessTime(time)
+    val time = operation.rowTime()
+    val timeText = buildString {
+        if (showDay) append(formatters.businessDay(ma.tany.core.model.common.BusinessTime.businessDate(time.start))).append(" · ")
+        append(time.end?.let { formatters.businessTimeRange(time.start, it) } ?: formatters.businessTime(time.start))
+    }
     val exception = operation.exceptionLine()
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(painterResource(operation.kind.icon()), contentDescription = null, tint = phase.tone.colors().accent, modifier = Modifier.size(16.dp))
+                    Text(stringResource(operation.kind.label()), style = TanyTheme.typography.label, color = colors.textMuted)
+                }
+                Text(
+                    (time.prefix?.let { stringResource(it) + " " } ?: "") + ltrIsolated(timeText),
+                    style = TanyTheme.typography.title.copy(fontFeatureSettings = "tnum"),
+                )
+            }
+            TanyStatusChip(stringResource(phase.short), phase.tone, size = TanyChipSize.SMALL)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             ProductImageSurface(
                 url = endpoint.resolveMedia(operation.product.displayImage),
                 contentDescription = null,
-                modifier = Modifier.width(64.dp),
+                modifier = Modifier.width(80.dp),
                 padding = 6.dp,
             )
-            operation.assetCode?.let {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Full name: wraps instead of « Coll… ».
+                Text(operation.product.name, style = TanyTheme.typography.headline)
+                operation.assetCode?.let { TanyCodePill(ltrIsolated(it)) }
                 Text(
-                    ltrIsolated(it),
-                    style = TanyTheme.typography.caption.copy(fontFamily = TanyTheme.typography.code.fontFamily),
-                    color = colors.textMuted,
-                    maxLines = 1,
-                )
-            }
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(painterResource(operation.kind.icon()), contentDescription = null, tint = phase.tone.colors().accent, modifier = Modifier.size(16.dp))
-                Text(
-                    "${ltrIsolated(timeText)} · ${stringResource(operation.kind.label())}",
-                    style = TanyTheme.typography.bodyStrong.copy(fontFeatureSettings = "tnum"),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                Spacer(Modifier.weight(1f))
-                TanyStatusChip(stringResource(phase.short), phase.tone, size = TanyChipSize.SMALL)
-            }
-            Text(operation.product.name, style = TanyTheme.typography.headline, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (period.dayCount > 1) {
-                Text(
-                    "${pluralStringResource(R.plurals.booking_days, period.dayCount, period.dayCount)} · ${formatters.usagePeriod(period.startDate, period.endDate)}",
-                    style = TanyTheme.typography.caption,
+                    "${operation.customer.shortName} · ${ltrIsolated(operation.reference)}",
+                    style = TanyTheme.typography.label,
                     color = colors.textMuted,
                 )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "${ltrIsolated(operation.reference)} · ${operation.customer.shortName}",
-                    style = TanyTheme.typography.caption,
-                    color = colors.textMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                MoneyText(operation.rowAmount())
-            }
-            exception?.let { (text, tone) ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 2.dp)) {
-                    Icon(
-                        painterResource(if (tone == TanyTone.DANGER) DsR.drawable.ic_tany_warning else DsR.drawable.ic_tany_clock),
-                        contentDescription = null,
-                        tint = if (tone == TanyTone.NEUTRAL) colors.textMuted else tone.colors().accent,
-                        modifier = Modifier.size(14.dp),
-                    )
+                if (period.dayCount > 1) {
                     Text(
-                        text,
-                        style = TanyTheme.typography.label,
-                        color = if (tone == TanyTone.NEUTRAL) colors.textMuted else tone.colors().accent,
-                        maxLines = 3,
+                        "${pluralStringResource(R.plurals.booking_days, period.dayCount, period.dayCount)} · ${formatters.usagePeriod(period.startDate, period.endDate)}",
+                        style = TanyTheme.typography.caption,
+                        color = colors.textMuted,
                     )
                 }
+            }
+        }
+        operation.rowMoney()?.let { money ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(money.label), style = TanyTheme.typography.label, color = colors.textMuted, modifier = Modifier.weight(1f))
+                MoneyText(money.amount)
+            }
+        }
+        exception?.let { (text, tone) ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(
+                    painterResource(if (tone == TanyTone.DANGER) DsR.drawable.ic_tany_warning else DsR.drawable.ic_tany_clock),
+                    contentDescription = null,
+                    tint = if (tone == TanyTone.NEUTRAL) colors.textMuted else tone.colors().accent,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text,
+                    style = TanyTheme.typography.label,
+                    color = if (tone == TanyTone.NEUTRAL) colors.textMuted else tone.colors().accent,
+                )
             }
         }
     }
@@ -349,10 +415,10 @@ fun Operation.spokenSummary(): String {
     val parts = listOfNotNull(
         stringResource(kind.label()),
         reference,
-        formatters.businessTime(completedAt ?: referenceTime()),
+        formatters.businessTime(rowTime().start),
         product.name,
         assetCode?.let { stringResource(R.string.row_item_code, it) },
-        formatters.money(rowAmount()),
+        rowMoney()?.let { formatters.money(it.amount) },
         stringResource(phase.short),
         exceptionLine()?.first,
     )
@@ -376,7 +442,7 @@ fun OperationCard(operation: Operation, endpoint: ApiEndpoint, onClick: () -> Un
         },
         onClick = onClick,
         accent = phase.tone.takeIf { it == TanyTone.DANGER },
-        contentPadding = 14.dp,
+        contentPadding = 16.dp,
     ) {
         OperationRowContent(operation, endpoint)
     }

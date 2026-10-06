@@ -1,22 +1,34 @@
 package ma.tany.collect.feature.booking
 
 import android.net.Uri
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.stateDescription
+import ma.tany.collect.core.ui.dayLabel
+import ma.tany.core.designsystem.component.TanyCardStyle
+import ma.tany.core.designsystem.component.TanyRow
+import ma.tany.core.designsystem.component.colors
+import java.time.Instant
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.remember
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import ma.tany.core.designsystem.component.TanyBottomSheet
-import ma.tany.core.designsystem.component.TanyIllustration
 import ma.tany.core.model.collect.ActorRole
 import ma.tany.core.model.collect.AssetStatus
 import ma.tany.core.model.collect.BookingEventType
@@ -42,11 +54,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,7 +90,6 @@ import ma.tany.collect.core.media.OperationPhotos
 import ma.tany.collect.core.ui.LoadState
 import ma.tany.collect.core.ui.messageRes
 import ma.tany.collect.core.ui.toLoadState
-import ma.tany.collect.feature.operations.confirmHaptic
 import ma.tany.collect.feature.operations.text
 import ma.tany.collect.feature.today.icon
 import ma.tany.collect.feature.today.durationText
@@ -92,7 +103,6 @@ import ma.tany.core.designsystem.component.ConfirmationSheetHost
 import ma.tany.core.designsystem.component.LocalTanyFormatters
 import ma.tany.core.designsystem.component.MoneyText
 import ma.tany.core.designsystem.component.ProductImageSurface
-import ma.tany.core.designsystem.component.TanyAmountPanel
 import ma.tany.core.designsystem.component.TanyAvatar
 import ma.tany.core.designsystem.component.TanyButton
 import ma.tany.core.designsystem.component.TanyButtonStyle
@@ -107,13 +117,8 @@ import ma.tany.core.designsystem.component.TanyErrorState
 import ma.tany.core.designsystem.component.TanyInfoRow
 import ma.tany.core.designsystem.component.TanyNotice
 import ma.tany.core.designsystem.component.TanySectionHeader
-import ma.tany.core.designsystem.component.TanySegment
-import ma.tany.core.designsystem.component.TanySegmentedControl
 import ma.tany.core.designsystem.component.TanyStatusChip
-import ma.tany.core.designsystem.component.TanyStepState
-import ma.tany.core.designsystem.component.TanyTimelineStep
 import ma.tany.core.designsystem.component.TanyTone
-import ma.tany.core.designsystem.component.TanyToneIcon
 import ma.tany.core.designsystem.component.TanyTopBar
 import ma.tany.core.designsystem.component.rememberConfirmationState
 import ma.tany.core.designsystem.component.tanyFieldColors
@@ -127,10 +132,8 @@ import ma.tany.core.model.collect.OperationKind
 import ma.tany.core.model.collect.ReturnBody
 import ma.tany.core.model.collect.ReturnIncident
 import ma.tany.core.model.common.AssetCondition
-import ma.tany.core.model.common.BookingStatus
 import ma.tany.core.model.common.IncidentType
 import ma.tany.core.model.common.MoneyAmount
-import ma.tany.core.model.common.PaymentStatus
 import ma.tany.core.model.common.QrPurpose
 import ma.tany.core.network.ApiEndpoint
 import ma.tany.core.network.ApiResult
@@ -174,6 +177,11 @@ data class PickupUiState(
     val nudgeAvailableAt: Long = 0L,
     /** The customer confirmed while the merchant was on the screen. */
     val completed: CompletedStep? = null,
+    /**
+     * Guided flow only: the merchant reviewed the uploaded photo(s) and moved on. A UI acknowledgement — the server still
+     * requires (and checks) the photo for the handover / return statement.
+     */
+    val photosAccepted: Boolean = false,
 )
 
 /**
@@ -279,6 +287,9 @@ class BookingDetailViewModel @Inject constructor(
 
     fun onPhotoCondition(condition: AssetCondition) = _pickup.update { it.copy(photoCondition = condition) }
 
+    /** Guided flow: the photo is reviewed, show the next step (no server call). */
+    fun acceptPhotos() = _pickup.update { it.copy(photosAccepted = true) }
+
     /** Private capture target for the system camera. */
     fun photoTarget(): Uri = photos.uriFor(preparePhoto())
 
@@ -303,6 +314,7 @@ class BookingDetailViewModel @Inject constructor(
                 val jpeg = runCatching { photos.encode(file) }.getOrNull()
                     ?: return@send ApiResult.Failure(PHOTO_UNREADABLE)
                 operations.uploadPhoto(bookingId, pointId, purpose, condition, jpeg)
+                    .also { if (it is ApiResult.Success) _pickup.update { s -> s.copy(photosAccepted = false) } }
             } finally {
                 photos.discard(file)
             }
@@ -358,9 +370,13 @@ class BookingDetailViewModel @Inject constructor(
      */
     fun declareReturn(pointId: String, onDone: () -> Unit) {
         val form = _pickup.value.returnForm
+        // Same rule as the handover: the condition the SERVER recorded with the return photos, unless the statement
+        // itself reports an issue (a missing accessory or an incident is never declared « good »).
+        val recorded = (_state.value as? LoadState.Loaded)?.value?.returnInfo?.condition
+            ?.takeIf { it == AssetCondition.GOOD || it == AssetCondition.ISSUE_REPORTED }
         val body = ReturnBody(
             collectPointId = pointId,
-            condition = if (form.incidentType != null || form.missingAccessories.isNotEmpty()) AssetCondition.ISSUE_REPORTED else form.condition,
+            condition = if (form.incidentType != null || form.missingAccessories.isNotEmpty()) AssetCondition.ISSUE_REPORTED else recorded ?: form.condition,
             missingAccessories = form.missingAccessories.toList(),
             incident = form.incidentType?.let { ReturnIncident(it, form.incidentDescription.trim().take(INCIDENT_DESCRIPTION_MAX).ifBlank { null }) },
         )
@@ -408,8 +424,12 @@ fun BookingDetailScreen(
     val confirmation = rememberConfirmationState()
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { viewModel.onPhotoCaptured(pointId, it) }
     var incidentOpen by rememberSaveable { mutableStateOf(false) }
+    // null = follow the SERVER stage (guided while an operation is under way at the counter); true / false = the
+    // merchant opened or left the guided flow.
+    var flowChoice by rememberSaveable { mutableStateOf<Boolean?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
-    val phase = (state as? LoadState.Loaded)?.value?.phase
+    val loaded = (state as? LoadState.Loaded)?.value
+    val phase = loaded?.phase
     // Waiting for the customer's confirmation in TANY: quiet re-read every 3 s while the screen is visible.
     LaunchedEffect(phase, lifecycleOwner) {
         if (phase in AWAITING_CUSTOMER_PHASES) {
@@ -421,55 +441,59 @@ fun BookingDetailScreen(
             }
         }
     }
+    val mode = loaded?.let { detailMode(it.stage(), flowChoice, pickup.completed != null) } ?: DetailMode.OVERVIEW
+    BackHandler(enabled = mode != DetailMode.OVERVIEW) {
+        if (mode == DetailMode.SUCCESS) viewModel.dismissCompleted()
+        flowChoice = false
+    }
 
-    val paymentTitle = stringResource(R.string.pickup_cash_title)
-    val paymentMessage = stringResource(R.string.pickup_cash_message)
-    val paymentCta = stringResource(R.string.pickup_cash_cta)
-    val handoverTitle = stringResource(R.string.pickup_handover_title)
-    val handoverMessage = stringResource(R.string.pickup_handover_message)
-    val handoverCta = stringResource(R.string.pickup_handover_cta)
-    val returnTitle = stringResource(R.string.return_statement_title)
-    val returnMessage = stringResource(R.string.return_statement_message)
-    val returnMessageIssue = stringResource(R.string.return_statement_message_issue)
-    val returnCta = stringResource(R.string.return_statement_cta)
-    val depositTitle = stringResource(R.string.deposit_confirm_title)
-    val depositMessage = stringResource(R.string.deposit_confirm_message)
-    val depositCta = stringResource(R.string.deposit_confirm_cta)
-    val paymentAmountLabel = stringResource(R.string.pickup_cash_amount_label)
-    val depositAmountLabel = stringResource(R.string.deposit_amount_label)
-
+    val context = LocalContext.current
+    val formatters = LocalTanyFormatters.current
     Column(Modifier.fillMaxSize()) {
-        val loaded = (state as? LoadState.Loaded)?.value
-        TanyTopBar(title = stringResource(R.string.booking_title), onBack = onBack, subtitle = loaded?.reference?.let(::ltrIsolated))
+        val returnFlow = loaded?.isReturnFlow() == true
+        val (title, subtitle) = when {
+            loaded == null -> stringResource(R.string.booking_title) to null
+            mode == DetailMode.GUIDED && returnFlow -> stringResource(R.string.return_title) to
+                stringResource(R.string.flow_step_of, loaded.returnStep(pickup.photosAccepted).position(), loaded.returnStepCount())
+            mode == DetailMode.GUIDED -> stringResource(R.string.pickup_title) to
+                stringResource(R.string.flow_step_of, loaded.pickupStep(pickup.photosAccepted).position(), PICKUP_STEP_COUNT)
+            else -> stringResource(R.string.booking_title) to ltrIsolated(loaded.reference)
+        }
+        TanyTopBar(
+            title = title,
+            subtitle = subtitle,
+            onBack = if (mode == DetailMode.OVERVIEW) onBack else ({ if (mode == DetailMode.SUCCESS) viewModel.dismissCompleted(); flowChoice = false }),
+        )
         when (val s = state) {
             LoadState.Loading -> TanyDetailSkeleton()
             is LoadState.Failed -> TanyErrorState(stringResource(s.error.messageRes()), onRetry = { viewModel.load(pointId) })
             is LoadState.Loaded -> {
+                val booking = s.value
                 // The scan purpose follows the server's operation kind (pickup or return).
-                val purpose = if (s.value.kind == OperationKind.RETURN) QrPurpose.RETURN else QrPurpose.PICKUP
-                Content(
-                booking = s.value,
-                endpoint = viewModel.endpoint,
-                pickup = pickup,
-                actions = PickupActions(
+                val purpose = if (booking.isReturnFlow()) QrPurpose.RETURN else QrPurpose.PICKUP
+                val actions = PickupActions(
                     reportProblem = { incidentOpen = true },
                     nudge = { viewModel.nudge(pointId) },
                     finish = onBack,
-                    dismissCompleted = viewModel::dismissCompleted,
+                    dismissCompleted = {
+                        viewModel.dismissCompleted()
+                        flowChoice = false
+                    },
                     scanCustomer = { onScanCustomer(viewModel.bookingId, purpose) },
                     scanAsset = { onScanAsset(viewModel.bookingId, purpose) },
                     takePhoto = { camera.launch(viewModel.photoTarget()) },
                     onCondition = viewModel::onPhotoCondition,
+                    acceptPhotos = viewModel::acceptPhotos,
                     cash = { amount ->
                         confirmation.show(
                             ConfirmationRequest(
                                 id = "pickup-cash",
-                                title = paymentTitle,
-                                message = paymentMessage,
-                                confirmLabel = paymentCta,
+                                title = context.getString(R.string.pickup_cash_title),
+                                message = context.getString(R.string.pickup_cash_message),
+                                confirmLabel = context.getString(R.string.pickup_cash_cta_amount, formatters.money(amount)),
                                 kind = ConfirmationKind.FINANCIAL,
                                 amount = amount,
-                                amountLabel = paymentAmountLabel,
+                                amountLabel = context.getString(R.string.pickup_cash_amount_label),
                             ),
                         )
                     },
@@ -477,9 +501,9 @@ fun BookingDetailScreen(
                         confirmation.show(
                             ConfirmationRequest(
                                 id = "pickup-handover",
-                                title = handoverTitle,
-                                message = handoverMessage,
-                                confirmLabel = handoverCta,
+                                title = context.getString(R.string.pickup_handover_title),
+                                message = context.getString(R.string.pickup_handover_message_named, booking.product.name, booking.customer.shortName),
+                                confirmLabel = context.getString(R.string.pickup_handover_cta),
                                 icon = DsR.drawable.ic_tany_pickup,
                             ),
                         )
@@ -489,31 +513,43 @@ fun BookingDetailScreen(
                         confirmation.show(
                             ConfirmationRequest(
                                 id = "deposit-refund",
-                                title = depositTitle,
-                                message = depositMessage,
-                                confirmLabel = depositCta,
+                                title = context.getString(R.string.deposit_confirm_title),
+                                message = context.getString(R.string.deposit_confirm_message),
+                                confirmLabel = context.getString(R.string.deposit_confirm_cta),
                                 kind = ConfirmationKind.FINANCIAL,
                                 amount = amount,
-                                amountLabel = depositAmountLabel,
+                                amountLabel = context.getString(R.string.deposit_amount_label),
                             ),
                         )
                     },
                     updateReturn = viewModel::updateReturnForm,
                     declareReturn = {
                         val form = pickup.returnForm
-                        val issue = form.incidentType != null || form.missingAccessories.isNotEmpty() || form.condition == AssetCondition.ISSUE_REPORTED
+                        val issue = form.incidentType != null || form.missingAccessories.isNotEmpty() ||
+                            booking.returnInfo?.condition == AssetCondition.ISSUE_REPORTED
                         confirmation.show(
                             ConfirmationRequest(
                                 id = "return-statement",
-                                title = returnTitle,
-                                message = if (issue) returnMessageIssue else returnMessage,
-                                confirmLabel = returnCta,
+                                title = context.getString(R.string.return_statement_title),
+                                message = context.getString(if (issue) R.string.return_statement_message_issue else R.string.return_statement_message),
+                                confirmLabel = context.getString(R.string.return_statement_cta),
                                 icon = DsR.drawable.ic_tany_return,
                             ),
                         )
                     },
-                ),
-            )
+                )
+                AnimatedContent(
+                    targetState = mode,
+                    transitionSpec = { tanyScreenTransition(forward = targetState.ordinal > initialState.ordinal) },
+                    label = "booking-mode",
+                ) { current ->
+                    when (current) {
+                        DetailMode.SUCCESS -> pickup.completed?.let { SuccessView(it, booking, endpoint = viewModel.endpoint, actions = actions) }
+                            ?: Overview(booking, viewModel.endpoint, onStart = { flowChoice = true })
+                        DetailMode.GUIDED -> GuidedFlow(booking, viewModel.endpoint, pickup, actions)
+                        DetailMode.OVERVIEW -> Overview(booking, viewModel.endpoint, onStart = { flowChoice = true })
+                    }
+                }
             }
         }
     }
@@ -525,10 +561,9 @@ fun BookingDetailScreen(
         )
     }
     ConfirmationSheetHost(confirmation) { request ->
-        val booking = (state as? LoadState.Loaded)?.value
         when (request.id) {
             "pickup-cash" -> request.amount?.let { amount -> viewModel.confirmPayment(pointId, amount, confirmation::finish) } ?: confirmation.finish()
-            "pickup-handover" -> if (booking != null) viewModel.handover(pointId, confirmation::finish) else confirmation.finish()
+            "pickup-handover" -> if (loaded != null) viewModel.handover(pointId, confirmation::finish) else confirmation.finish()
             "return-statement" -> viewModel.declareReturn(pointId, confirmation::finish)
             "deposit-refund" -> request.amount?.let { amount -> viewModel.handBackDeposit(pointId, amount, confirmation::finish) } ?: confirmation.finish()
             else -> confirmation.finish()
@@ -536,7 +571,24 @@ fun BookingDetailScreen(
     }
 }
 
-private class PickupActions(
+/** What the booking screen shows: the state-based overview, the guided flow, or the short success state. */
+enum class DetailMode { OVERVIEW, GUIDED, SUCCESS }
+
+/**
+ * Pure choice of the screen mode. The guided flow is only ever offered in stages where the SERVER lets an operation
+ * start or continue ([STARTABLE_STAGES]); it opens by itself while one is under way ([GUIDED_STAGES]) unless the
+ * merchant left it ([choice] = false). A customer confirmation seen on screen shows the success state.
+ */
+fun detailMode(stage: BookingStage, choice: Boolean?, completed: Boolean): DetailMode = when {
+    completed -> DetailMode.SUCCESS
+    stage in STARTABLE_STAGES && (choice ?: (stage in GUIDED_STAGES)) -> DetailMode.GUIDED
+    else -> DetailMode.OVERVIEW
+}
+
+/** Return flow (vs pickup flow): the booking is collected, or a deposit hand-back follows its return. */
+fun MerchantBookingDetail.isReturnFlow(): Boolean = stage() in setOf(BookingStage.RENTAL_ACTIVE, BookingStage.RETURN_EXPECTED, BookingStage.RETURN_ACTIVE)
+
+internal class PickupActions(
     val reportProblem: () -> Unit,
     val nudge: () -> Unit,
     val finish: () -> Unit,
@@ -545,6 +597,7 @@ private class PickupActions(
     val scanAsset: () -> Unit,
     val takePhoto: () -> Unit,
     val onCondition: (AssetCondition) -> Unit,
+    val acceptPhotos: () -> Unit,
     val cash: (MoneyAmount) -> Unit,
     val handover: () -> Unit,
     val scanDepositQr: () -> Unit,
@@ -553,8 +606,25 @@ private class PickupActions(
     val declareReturn: () -> Unit,
 )
 
+/** Screen-to-screen motion of the booking: a short horizontal slide + fade (mirrored in RTL by the layout). */
+internal fun tanyScreenTransition(forward: Boolean): ContentTransform {
+    val distance = { full: Int -> full / 8 }
+    return if (forward) {
+        (fadeIn(tween(220, delayMillis = 60)) + slideInHorizontally(tween(260)) { distance(it) })
+            .togetherWith(fadeOut(tween(120)) + slideOutHorizontally(tween(260)) { -distance(it) })
+    } else {
+        (fadeIn(tween(220, delayMillis = 60)) + slideInHorizontally(tween(260)) { -distance(it) })
+            .togetherWith(fadeOut(tween(120)) + slideOutHorizontally(tween(260)) { distance(it) })
+    }
+}
+
+/**
+ * State-based overview, ordered for a glance: STATUS (stage card with the one relevant action) → CUSTOMER → MONEY →
+ * PLANNING → photos / incidents / history (secondary, history folded). No execution control is shown before the
+ * server opens the pickup (`pickup_upcoming`).
+ */
 @Composable
-private fun Content(booking: MerchantBookingDetail, endpoint: ApiEndpoint, pickup: PickupUiState, actions: PickupActions) {
+private fun Overview(booking: MerchantBookingDetail, endpoint: ApiEndpoint, onStart: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -563,29 +633,21 @@ private fun Content(booking: MerchantBookingDetail, endpoint: ApiEndpoint, picku
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        pickup.completed?.let { SuccessCard(it, booking, onFinish = actions.finish, onDismiss = actions.dismissCompleted) }
-        SummaryCard(booking, endpoint)
+        StageCard(booking, endpoint, onStart)
         when (booking.phase) {
             MerchantPhase.CANCELLED -> CancelledCard(booking)
             MerchantPhase.DEPOSIT_DISPUTED, MerchantPhase.BLOCKED_PENDING_REVIEW -> InterventionCard(booking)
             else -> Unit
         }
-        if (booking.phase in AWAITING_CUSTOMER_PHASES) WaitingCard(booking, pickup, actions)
         CustomerCard(booking, endpoint)
-        if (booking.kind == OperationKind.PICKUP && booking.status == BookingStatus.RESERVED) {
-            PickupCard(booking, pickup, actions)
-        }
-        if (booking.kind == OperationKind.RETURN && booking.status == BookingStatus.COLLECTED) {
-            ReturnCard(booking, pickup, actions)
-        }
-        DepositCard(booking, pickup, actions)
+        MoneyCard(booking)
         ScheduleCard(booking)
         BookingDetailsSections(booking, endpoint)
     }
 }
 
 /** Phases where the customer must confirm in TANY (the screen re-reads, the merchant can send a reminder). */
-private val AWAITING_CUSTOMER_PHASES = setOf(
+internal val AWAITING_CUSTOMER_PHASES = setOf(
     MerchantPhase.PICKUP_AWAITING_CUSTOMER,
     MerchantPhase.RETURN_AWAITING_CUSTOMER,
     MerchantPhase.DEPOSIT_AWAITING_CUSTOMER,
@@ -594,44 +656,128 @@ private val AWAITING_CUSTOMER_PHASES = setOf(
 /** Re-read cadence while the customer confirms (same as TANY Collect iOS). */
 private const val AWAITING_POLL_MS = 3_000L
 
-/** Product, asset, kind and the SERVER phase with its explanation (never a locally inferred next step). */
+/** Headline of the stage card and the server instant(s) it puts forward. */
+private data class StageTiming(@StringRes val headline: Int, val start: Instant, val end: Instant?)
+
+private fun MerchantBookingDetail.stageTiming(stage: BookingStage): StageTiming = when (stage) {
+    BookingStage.PICKUP_PLANNED -> StageTiming(R.string.stage_pickup_planned, pickupWindowStart, pickupWindowEnd)
+    BookingStage.PICKUP_READY -> StageTiming(R.string.stage_pickup_ready, pickupWindowStart, pickupWindowEnd)
+    BookingStage.PICKUP_ACTIVE -> StageTiming(R.string.stage_pickup_active, pickupWindowStart, pickupWindowEnd)
+    BookingStage.RENTAL_ACTIVE -> StageTiming(R.string.stage_rental_active, returnDeadline, null)
+    BookingStage.RETURN_EXPECTED ->
+        StageTiming(if (phase == MerchantPhase.RETURN_LATE) R.string.stage_return_late else R.string.stage_return_expected, returnWindowStart ?: returnDeadline, returnDeadline.takeIf { returnWindowStart != null })
+    BookingStage.RETURN_ACTIVE -> StageTiming(R.string.stage_return_active, returnDeadline, null)
+    BookingStage.ATTENTION -> StageTiming(R.string.stage_attention, updatedAt ?: returnDeadline, null)
+    BookingStage.CLOSED -> StageTiming(
+        when (phase) {
+            MerchantPhase.CANCELLED -> R.string.stage_cancelled
+            MerchantPhase.NO_SHOW -> R.string.stage_no_show
+            else -> R.string.stage_completed
+        },
+        completedAt ?: updatedAt ?: returnDeadline,
+        null,
+    )
+}
+
+/**
+ * The status card: server phase chip, what this booking is about NOW and when (large time), the object (image, full
+ * name, unit code) and the single relevant action of the stage. Before the pickup window it is a preparation card.
+ */
 @Composable
-private fun SummaryCard(booking: MerchantBookingDetail, endpoint: ApiEndpoint) {
+private fun StageCard(booking: MerchantBookingDetail, endpoint: ApiEndpoint, onStart: () -> Unit) {
+    val stage = booking.stage()
     val phase = booking.phase.ui()
+    val formatters = LocalTanyFormatters.current
     val colors = TanyTheme.colors
-    TanyCard {
+    val timing = booking.stageTiming(stage)
+    val time = timing.end?.let { formatters.businessTimeRange(timing.start, it) } ?: formatters.businessTime(timing.start)
+    TanyCard(contentPadding = 20.dp, accent = phase.tone.takeIf { it == TanyTone.DANGER }) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(timing.headline),
+                style = TanyTheme.typography.overline,
+                color = colors.textMuted,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { heading() },
+            )
+            TanyStatusChip(stringResource(phase.short), phase.tone, size = TanyChipSize.SMALL)
+        }
+        Column(Modifier.semantics(mergeDescendants = true) {}) {
+            Text(dayLabel(timing.start), style = TanyTheme.typography.label, color = colors.textMuted)
+            Text(ltrIsolated(time), style = TanyTheme.typography.largeTitle.copy(fontFeatureSettings = "tnum"))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
             ProductImageSurface(
                 url = endpoint.resolveMedia(booking.product.displayImage),
                 contentDescription = booking.product.name,
-                modifier = Modifier.width(88.dp),
+                modifier = Modifier.width(96.dp),
                 padding = 8.dp,
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    TanyToneIcon(booking.kind.icon(), phase.tone, size = 24.dp)
-                    Text(stringResource(booking.kind.label()), style = TanyTheme.typography.label, color = colors.textMuted)
-                }
+                // Full product name: never truncated on the booking screen.
                 Text(booking.product.name, style = TanyTheme.typography.title)
                 (booking.asset?.code ?: booking.assetCode)?.let { TanyCodePill(ltrIsolated(it)) }
+                Text(
+                    "${ltrIsolated(booking.reference)} · ${booking.customer.shortName}",
+                    style = TanyTheme.typography.label,
+                    color = colors.textMuted,
+                )
             }
         }
-        TanyNotice(
-            title = stringResource(phase.label),
-            message = stringResource(phase.description),
-            tone = phase.tone,
-            icon = phase.tone.takeIf { it == TanyTone.NEUTRAL }?.let { DsR.drawable.ic_tany_info },
-        )
         if (booking.requiresTanyIntervention) {
             TanyNotice(message = stringResource(R.string.booking_tany_intervention), tone = TanyTone.WARNING, icon = DsR.drawable.ic_tany_shield)
+        }
+        when (stage) {
+            BookingStage.PICKUP_PLANNED -> TanyNotice(
+                // Preparation only: the server opens the pickup at the window start (`pickup_ready`).
+                title = stringResource(R.string.stage_planned_opens, formatters.businessTime(booking.pickupWindowStart)),
+                message = stringResource(R.string.stage_planned_message),
+                tone = TanyTone.NEUTRAL,
+                icon = DsR.drawable.ic_tany_clock,
+            )
+            BookingStage.PICKUP_READY -> TanyButton(stringResource(R.string.stage_start_pickup), onStart, icon = DsR.drawable.ic_tany_pickup)
+            BookingStage.PICKUP_ACTIVE -> TanyButton(stringResource(R.string.stage_resume_pickup), onStart, icon = DsR.drawable.ic_tany_pickup)
+            BookingStage.RENTAL_ACTIVE -> {
+                Text(stringResource(R.string.stage_rental_message), style = TanyTheme.typography.label, color = colors.textMuted)
+                TanyButton(stringResource(R.string.stage_start_return), onStart, style = TanyButtonStyle.SECONDARY, icon = DsR.drawable.ic_tany_return)
+            }
+            BookingStage.RETURN_EXPECTED -> {
+                // Lateness is the server's (`lateMinutes`) and NEVER blocks the return.
+                booking.lateMinutes?.takeIf { it > 0 }?.let { late ->
+                    TanyNotice(
+                        title = stringResource(R.string.return_late_title, durationText(late)),
+                        message = stringResource(R.string.return_late_message),
+                        tone = TanyTone.DANGER,
+                        icon = DsR.drawable.ic_tany_clock,
+                    )
+                }
+                TanyButton(stringResource(R.string.stage_start_return), onStart, icon = DsR.drawable.ic_tany_return)
+            }
+            BookingStage.RETURN_ACTIVE -> TanyButton(
+                stringResource(
+                    if (booking.phase == MerchantPhase.DEPOSIT_TO_REFUND || booking.phase == MerchantPhase.DEPOSIT_AWAITING_CUSTOMER) {
+                        R.string.stage_resume_deposit
+                    } else {
+                        R.string.stage_resume_return
+                    },
+                ),
+                onStart,
+                icon = DsR.drawable.ic_tany_return,
+            )
+            BookingStage.ATTENTION, BookingStage.CLOSED -> Text(
+                stringResource(phase.description),
+                style = TanyTheme.typography.label,
+                color = colors.textMuted,
+            )
         }
     }
 }
 
+/** Merchant-safe customer data only (short name, 4 last digits, identity verified) — never Trusted / Saved Places. */
 @Composable
-private fun CustomerCard(booking: MerchantBookingDetail, endpoint: ApiEndpoint) {
-    TanyCard {
-        // Minimal customer data only — never Trusted, never identity documents.
+internal fun CustomerCard(booking: MerchantBookingDetail, endpoint: ApiEndpoint, prominent: Boolean = false) {
+    TanyCard(style = if (prominent) TanyCardStyle.OUTLINED else TanyCardStyle.FILLED, contentPadding = if (prominent) 18.dp else 14.dp) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             // Verified profile photo: only sent by the server during the pickup (signed ~5 min) to recognise the customer.
             val photo = booking.customer.identity?.profilePhotoUrl
@@ -641,392 +787,67 @@ private fun CustomerCard(booking: MerchantBookingDetail, endpoint: ApiEndpoint) 
                     contentDescription = stringResource(R.string.pickup_customer_photo),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(if (prominent) 72.dp else 48.dp)
                         .clip(CircleShape),
                 )
             } else {
-                TanyAvatar(booking.customer.shortName, size = 48.dp)
+                TanyAvatar(booking.customer.shortName, size = if (prominent) 56.dp else 40.dp)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(stringResource(R.string.booking_customer), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
-                Text(booking.customer.shortName, style = TanyTheme.typography.headline)
-                Text(ltrIsolated("•••• ${booking.customer.phoneLast4}"), style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted)
-            }
-        }
-        if (booking.customer.identity?.verified == true) {
-            TanyStatusChip(stringResource(R.string.booking_identity_verified), TanyTone.SUCCESS, size = TanyChipSize.SMALL)
-        }
-        if (booking.status == BookingStatus.RESERVED) {
-            Text(stringResource(R.string.booking_check_phone), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
-        }
-    }
-}
-
-/** Card header: icon tile + title. */
-@Composable
-private fun FlowHeader(icon: Int, title: String, tone: TanyTone) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        TanyToneIcon(icon, tone, size = 36.dp)
-        Text(title, style = TanyTheme.typography.headline, modifier = Modifier.semantics { heading() })
-    }
-}
-
-/**
- * Pickup checklist = the server's facts (timestamps, photo count, payment status); each unfinished step offers its
- * gesture and the server accepts or refuses it (order, window, identity, amount). Nothing is inferred locally.
- */
-@Composable
-private fun PickupCard(booking: MerchantBookingDetail, pickup: PickupUiState, actions: PickupActions) {
-    val facts = booking.pickup
-    val handedOver = facts?.merchantConfirmedAt != null
-    val busy = pickup.busy != null
-    val due = booking.payment?.totalDueAtPickup ?: booking.pricing?.totalDueAtPickup
-    val paid = booking.payment?.status == PaymentStatus.PAID
-    TanyCard(contentPadding = 18.dp) {
-        FlowHeader(DsR.drawable.ic_tany_pickup, stringResource(R.string.pickup_title), TanyTone.ACTION)
-        due?.let { amount ->
-            TanyAmountPanel(
-                label = stringResource(if (paid) R.string.pickup_amount_paid else R.string.booking_total_due),
-                amount = amount,
-                tone = if (paid) TanyTone.SUCCESS else TanyTone.NEUTRAL,
-                icon = if (paid) DsR.drawable.ic_tany_check else DsR.drawable.ic_tany_cash,
-                caption = stringResource(R.string.pickup_amount_caption),
-            ) {
-                // Server breakdown only (rental + deposit), never recomputed.
-                val rental = booking.payment?.rentalAmount ?: booking.pricing?.rentalTotal
-                val deposit = booking.payment?.depositAmount ?: booking.pricing?.deposit
-                rental?.let { TanyInfoRow(stringResource(R.string.booking_rental_amount)) { MoneyText(it) } }
-                deposit?.let { TanyInfoRow(stringResource(R.string.booking_deposit_amount)) { MoneyText(it) } }
-            }
-        }
-        if (pickup.incidentReported) {
-            TanyNotice(message = stringResource(R.string.incident_reported_continue), tone = TanyTone.WARNING, icon = DsR.drawable.ic_tany_shield)
-        }
-        if (handedOver) {
-            facts?.completionDeadline?.let {
-                TanyInfoRow(stringResource(R.string.pickup_complete_before), icon = DsR.drawable.ic_tany_clock) {
-                    BusinessDateTimeText(it, style = TanyTheme.typography.label)
-                }
-            }
-        }
-        Column(Modifier.padding(top = 4.dp)) {
-            Step(
-                label = stringResource(R.string.pickup_step_customer),
-                done = facts?.clientVerifiedAt != null,
-                action = if (!handedOver) stringResource(R.string.pickup_scan_customer) else null,
-                actionIcon = DsR.drawable.ic_tany_qr,
-                onAction = actions.scanCustomer,
-                enabled = !busy,
-            )
-            Step(
-                label = stringResource(R.string.pickup_step_asset, booking.asset?.code?.let(::ltrIsolated) ?: booking.assetCode?.let(::ltrIsolated).orEmpty()),
-                done = facts?.assetVerifiedAt != null,
-                action = if (!handedOver) stringResource(R.string.pickup_scan_asset) else null,
-                actionIcon = DsR.drawable.ic_tany_tag,
-                onAction = actions.scanAsset,
-                enabled = !busy,
-            )
-            val photoCount = facts?.photoCount ?: 0
-            Step(
-                label = stringResource(R.string.pickup_step_photo, photoCount),
-                done = photoCount > 0,
-                // A photo can be added even once one exists (up to the server's limit).
-                action = if (!handedOver) stringResource(if (photoCount > 0) R.string.pickup_add_photo else R.string.pickup_take_photo) else null,
-                actionIcon = DsR.drawable.ic_tany_camera,
-                onAction = actions.takePhoto,
-                enabled = !busy,
-                loading = pickup.busy == PickupGesture.PHOTO,
-                showActionWhenDone = true,
-                supporting = if (!handedOver) stringResource(R.string.photo_guide) else null,
-                extra = if (!handedOver) {
-                    {
-                        ConditionChoice(pickup.photoCondition, actions.onCondition)
-                        TanyButton(
-                            stringResource(R.string.incident_report_action),
-                            actions.reportProblem,
-                            style = TanyButtonStyle.TEXT,
-                            icon = DsR.drawable.ic_tany_warning,
-                            enabled = !busy,
-                            compact = true,
-                        )
-                    }
-                } else {
-                    null
-                },
-            )
-            Step(
-                label = stringResource(R.string.pickup_step_cash),
-                done = paid,
-                action = if (!handedOver && !paid && due != null) stringResource(R.string.pickup_cash_action) else null,
-                actionIcon = DsR.drawable.ic_tany_cash,
-                actionStyle = TanyButtonStyle.PRIMARY,
-                onAction = { due?.let(actions.cash) },
-                enabled = !busy,
-                loading = pickup.busy == PickupGesture.PAYMENT,
-                trailing = { due?.let { MoneyText(it) } },
-            )
-            Step(
-                label = stringResource(R.string.pickup_step_handover),
-                done = handedOver,
-                action = if (!handedOver) stringResource(R.string.pickup_handover_action) else null,
-                actionIcon = DsR.drawable.ic_tany_pickup,
-                actionStyle = TanyButtonStyle.PRIMARY,
-                onAction = actions.handover,
-                enabled = !busy,
-                loading = pickup.busy == PickupGesture.HANDOVER,
-            )
-            Step(
-                label = stringResource(R.string.pickup_step_customer_confirms),
-                done = facts?.customerConfirmedAt != null,
-                waiting = handedOver,
-                action = null,
-                onAction = {},
-                isLast = true,
-            )
-        }
-        pickup.error?.takeIf { pickup.failed != PickupGesture.DEPOSIT_REFUND }?.let {
-            TanyNotice(message = it.text(), tone = TanyTone.DANGER)
-        }
-    }
-}
-
-/**
- * One checklist step on the timeline. State comes from the server's facts: done (✓), waiting for the customer (◷) or
- * to do (○). The step's gesture is offered while it is not done; the server accepts or refuses it.
- */
-@Composable
-private fun Step(
-    label: String,
-    done: Boolean,
-    action: String?,
-    onAction: () -> Unit,
-    enabled: Boolean = true,
-    loading: Boolean = false,
-    waiting: Boolean = false,
-    isLast: Boolean = false,
-    actionIcon: Int? = null,
-    actionStyle: TanyButtonStyle = TanyButtonStyle.TONAL,
-    showActionWhenDone: Boolean = false,
-    supporting: String? = null,
-    trailing: (@Composable () -> Unit)? = null,
-    extra: (@Composable () -> Unit)? = null,
-) {
-    val state = when {
-        done -> TanyStepState.DONE
-        waiting -> TanyStepState.WAITING
-        else -> TanyStepState.TODO
-    }
-    val stateLabel = stringResource(
-        when (state) {
-            TanyStepState.DONE -> R.string.pickup_done
-            TanyStepState.WAITING -> R.string.step_waiting
-            TanyStepState.TODO -> R.string.pickup_todo
-        },
-    )
-    val showAction = action != null && (!done || showActionWhenDone)
-    val showExtra = extra != null && (!done || showAction)
-    TanyTimelineStep(
-        title = label,
-        state = state,
-        stateLabel = stateLabel,
-        supporting = supporting?.takeIf { !done },
-        isLast = isLast,
-        trailing = trailing,
-        action = if (showAction || showExtra) {
-            {
-                if (showExtra && extra != null) extra()
-                if (showAction && action != null) {
-                    TanyButton(
-                        action,
-                        onAction,
-                        style = if (done) TanyButtonStyle.SECONDARY else actionStyle,
-                        enabled = enabled,
-                        loading = loading,
-                        icon = actionIcon,
-                        compact = true,
-                    )
-                }
-            }
-        } else {
-            null
-        },
-    )
-}
-
-@Composable
-private fun ConditionChoice(selected: AssetCondition, onSelect: (AssetCondition) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(stringResource(R.string.pickup_condition_label), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
-        TanySegmentedControl(
-            options = listOf(
-                TanySegment(AssetCondition.GOOD, stringResource(R.string.pickup_condition_good), DsR.drawable.ic_tany_check),
-                TanySegment(AssetCondition.ISSUE_REPORTED, stringResource(R.string.pickup_condition_issue), DsR.drawable.ic_tany_warning),
-            ),
-            // Any other server condition is shown as « good » until the merchant picks one (same as before).
-            selected = if (selected == AssetCondition.ISSUE_REPORTED) AssetCondition.ISSUE_REPORTED else AssetCondition.GOOD,
-            onSelect = onSelect,
-        )
-    }
-}
-
-/**
- * Return checklist = the server's facts (`return.*`); the statement (condition, missing accessories, incident) is sent
- * once with the final confirmation. Order and requirements (QR → label → photo → statement) are checked by the server.
- */
-@Composable
-private fun ReturnCard(booking: MerchantBookingDetail, ui: PickupUiState, actions: PickupActions) {
-    val facts = booking.returnInfo
-    val declared = facts?.merchantConfirmedAt != null
-    val busy = ui.busy != null
-    TanyCard(contentPadding = 18.dp) {
-        FlowHeader(DsR.drawable.ic_tany_return, stringResource(R.string.return_title), TanyTone.ACTION)
-        // Lateness is the server's (`lateMinutes`) and never blocks the return.
-        booking.lateMinutes?.takeIf { it > 0 }?.let { late ->
-            TanyNotice(
-                title = stringResource(R.string.return_late_title, durationText(late)),
-                message = stringResource(R.string.return_late_message),
-                tone = TanyTone.DANGER,
-                icon = DsR.drawable.ic_tany_clock,
-            )
-        }
-        Column(Modifier.padding(top = 4.dp)) {
-            Step(
-                label = stringResource(R.string.return_step_customer),
-                done = facts?.clientVerifiedAt != null,
-                action = if (!declared) stringResource(R.string.pickup_scan_customer) else null,
-                actionIcon = DsR.drawable.ic_tany_qr,
-                onAction = actions.scanCustomer,
-                enabled = !busy,
-            )
-            Step(
-                label = stringResource(R.string.pickup_step_asset, booking.asset?.code?.let(::ltrIsolated) ?: booking.assetCode?.let(::ltrIsolated).orEmpty()),
-                done = facts?.assetVerifiedAt != null,
-                action = if (!declared) stringResource(R.string.pickup_scan_asset) else null,
-                actionIcon = DsR.drawable.ic_tany_tag,
-                onAction = actions.scanAsset,
-                enabled = !busy,
-            )
-            val photoCount = facts?.photoCount ?: 0
-            Step(
-                label = stringResource(R.string.pickup_step_photo, photoCount),
-                done = photoCount > 0,
-                action = if (!declared) stringResource(if (photoCount > 0) R.string.pickup_add_photo else R.string.pickup_take_photo) else null,
-                actionIcon = DsR.drawable.ic_tany_camera,
-                onAction = actions.takePhoto,
-                enabled = !busy,
-                loading = ui.busy == PickupGesture.PHOTO,
-                showActionWhenDone = true,
-                supporting = if (!declared) stringResource(R.string.photo_guide) else null,
-                extra = if (!declared) {
-                    { ConditionChoice(ui.photoCondition, actions.onCondition) }
-                } else {
-                    null
-                },
-            )
-            Step(
-                label = stringResource(R.string.return_step_statement),
-                done = declared,
-                action = if (!declared) stringResource(R.string.return_statement_action) else null,
-                actionIcon = DsR.drawable.ic_tany_check,
-                actionStyle = TanyButtonStyle.PRIMARY,
-                onAction = actions.declareReturn,
-                enabled = !busy,
-                loading = ui.busy == PickupGesture.RETURN_STATEMENT,
-                extra = if (!declared) {
-                    { ReturnStatementForm(booking, ui.returnForm, actions.updateReturn) }
-                } else {
-                    null
-                },
-            )
-            Step(
-                label = stringResource(R.string.return_step_customer_confirms),
-                done = facts?.customerConfirmedAt != null,
-                waiting = declared,
-                action = null,
-                onAction = {},
-                isLast = true,
-            )
-        }
-        ui.error?.takeIf { ui.failed != PickupGesture.DEPOSIT_REFUND }?.let {
-            TanyNotice(message = it.text(), tone = TanyTone.DANGER)
-        }
-    }
-}
-
-/**
- * Deposit hand-back = the server's facts: amount to hand back (`deposit.toRefundAmount`), deferred-refund QR check
- * (`refundPickup`), merchant / customer confirmations. Shown only while the server expects the gesture
- * (`merchantAction == HAND_BACK`) or awaits the customer's confirmation. The decision and the amount are TANY's; the
- * customer alone confirms the amount received.
- */
-@Composable
-private fun DepositCard(booking: MerchantBookingDetail, ui: PickupUiState, actions: PickupActions) {
-    val deposit = booking.deposit ?: return
-    val handedBack = deposit.merchantRefundConfirmedAt != null
-    val awaitingCustomer = handedBack && deposit.customerRefundConfirmedAt == null
-    if (deposit.merchantAction != MerchantDepositAction.HAND_BACK && !awaitingCustomer) return
-    val busy = ui.busy != null
-    val amount = deposit.toRefundAmount
-    val refundPickup = deposit.refundPickup
-    TanyCard(contentPadding = 18.dp, accent = TanyTone.ACTION.takeIf { !handedBack }) {
-        FlowHeader(DsR.drawable.ic_tany_cash, stringResource(R.string.deposit_title), TanyTone.WARNING)
-        TanyAmountPanel(
-            label = stringResource(if (handedBack) R.string.deposit_amount_handed_back else R.string.deposit_amount_to_hand_back),
-            amount = amount,
-            tone = if (handedBack) TanyTone.SUCCESS else TanyTone.WARNING,
-            icon = if (handedBack) DsR.drawable.ic_tany_check else DsR.drawable.ic_tany_cash,
-            caption = if (refundPickup?.partial == true) stringResource(R.string.deposit_partial) else stringResource(R.string.deposit_decided_by_tany),
-        )
-        refundPickup?.let {
-            Text(
-                stringResource(if (it.partial) R.string.deposit_decision_partial else R.string.deposit_decision_full),
-                style = TanyTheme.typography.label,
-                color = TanyTheme.colors.textMuted,
-            )
-        }
-        // Deferred refund: the hand-back is offered once the SERVER recorded the customer's deposit QR.
-        val qrPending = refundPickup?.qrRequired == true && refundPickup.verifiedAt == null
-        Column(Modifier.padding(top = 4.dp)) {
-            if (refundPickup?.qrRequired == true) {
-                // A refused hand-back (`deposit_refund_qr_required`, check older than 15 min) offers the scan again.
-                val qrMissing = ui.failed == PickupGesture.DEPOSIT_REFUND && ui.error == CollectOperationError.DepositRefundQrRequired
-                Step(
-                    label = stringResource(R.string.deposit_step_qr),
-                    done = refundPickup.verifiedAt != null && !qrMissing,
-                    action = if (!handedBack) stringResource(R.string.deposit_scan_qr) else null,
-                    actionIcon = DsR.drawable.ic_tany_qr,
-                    onAction = actions.scanDepositQr,
-                    enabled = !busy,
+                Text(booking.customer.shortName, style = if (prominent) TanyTheme.typography.title else TanyTheme.typography.bodyStrong)
+                Text(
+                    stringResource(R.string.customer_phone_last4, ltrIsolated(booking.customer.phoneLast4)),
+                    style = TanyTheme.typography.label,
+                    color = TanyTheme.colors.textMuted,
                 )
             }
-            Step(
-                label = stringResource(R.string.deposit_step_hand_back),
-                done = handedBack,
-                action = if (!handedBack && !qrPending && amount > MoneyAmount.ZERO) stringResource(R.string.deposit_hand_back_action) else null,
-                supporting = if (!handedBack) stringResource(R.string.deposit_customer_closes) else null,
-                actionIcon = DsR.drawable.ic_tany_cash,
-                actionStyle = TanyButtonStyle.PRIMARY,
-                onAction = { actions.handBackDeposit(amount) },
-                enabled = !busy,
-                loading = ui.busy == PickupGesture.DEPOSIT_REFUND,
-                trailing = { MoneyText(amount) },
-            )
-            Step(
-                label = stringResource(R.string.deposit_step_customer),
-                done = deposit.customerRefundConfirmedAt != null,
-                waiting = awaitingCustomer,
-                action = null,
-                onAction = {},
-                isLast = true,
-            )
-        }
-        ui.error?.takeIf { ui.failed == PickupGesture.DEPOSIT_REFUND }?.let {
-            TanyNotice(message = it.text(), tone = TanyTone.DANGER)
+            if (booking.customer.identity?.verified == true) {
+                TanyStatusChip(stringResource(R.string.booking_identity_verified), TanyTone.SUCCESS, size = TanyChipSize.SMALL)
+            }
         }
     }
 }
 
-/** Schedule and amounts of the booking (server values, Africa/Casablanca). */
+/**
+ * Money of the booking: ONE primary amount for the current stage (to collect at pickup, collected, deposit held, deposit
+ * to hand back) with its server breakdown below. Server amounts only, never recomputed.
+ */
+@Composable
+private fun MoneyCard(booking: MerchantBookingDetail) {
+    val stage = booking.stage()
+    val due = booking.amountDueAtPickup()
+    val rental = booking.payment?.rentalAmount ?: booking.pricing?.rentalTotal ?: booking.rentalAmount
+    val deposit = booking.payment?.depositAmount ?: booking.pricing?.deposit ?: booking.depositAmount
+    val (label, amount, tone) = when {
+        stage in setOf(BookingStage.PICKUP_PLANNED, BookingStage.PICKUP_READY, BookingStage.PICKUP_ACTIVE) && due != null ->
+            if (booking.pickupPaid()) {
+                Triple(R.string.money_collected, due, TanyTone.SUCCESS)
+            } else {
+                Triple(R.string.money_to_collect, due, TanyTone.NEUTRAL)
+            }
+        booking.deposit?.merchantAction == MerchantDepositAction.HAND_BACK ->
+            Triple(R.string.deposit_amount_to_hand_back, booking.deposit?.toRefundAmount ?: MoneyAmount.ZERO, TanyTone.WARNING)
+        booking.deposit?.heldAmount?.isZero == false -> Triple(R.string.money_deposit_held, booking.deposit!!.heldAmount, TanyTone.NEUTRAL)
+        else -> Triple(R.string.booking_rental_amount, rental, TanyTone.NEUTRAL)
+    }
+    TanySectionHeader(stringResource(R.string.money_title), modifier = Modifier.padding(top = 4.dp))
+    TanyCard {
+        Text(stringResource(label), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
+        MoneyText(amount, style = TanyTheme.typography.amountHero, color = if (tone == TanyTone.NEUTRAL) TanyTheme.colors.textPrimary else tone.colors().content)
+        TanyDivider()
+        TanyInfoRow(stringResource(R.string.booking_rental_amount)) { MoneyText(rental) }
+        deposit?.takeIf { !it.isZero }?.let { TanyInfoRow(stringResource(R.string.booking_deposit_amount)) { MoneyText(it) } }
+        booking.payment?.let {
+            TanyInfoRow(stringResource(R.string.money_payment)) {
+                Text(stringResource(R.string.money_payment_cash), style = TanyTheme.typography.bodyStrong)
+            }
+        }
+        booking.depositAction.label()?.let { TanyStatusChip(stringResource(it), TanyTone.WARNING, size = TanyChipSize.SMALL) }
+    }
+}
+
+/** Planning of the booking (server values, Africa/Casablanca): rental period, pickup window, return. Strong values. */
 @Composable
 private fun ScheduleCard(booking: MerchantBookingDetail) {
     val formatters = LocalTanyFormatters.current
@@ -1037,20 +858,15 @@ private fun ScheduleCard(booking: MerchantBookingDetail) {
             Text(
                 "${formatters.usagePeriod(period.startDate, period.endDate)} · " +
                     pluralStringResource(R.plurals.booking_days, period.dayCount, period.dayCount),
-                style = TanyTheme.typography.label,
+                style = TanyTheme.typography.bodyStrong,
             )
         }
         TanyInfoRow(stringResource(R.string.booking_pickup_window), icon = DsR.drawable.ic_tany_pickup) {
-            BusinessDateTimeText(booking.pickupWindowStart, end = booking.pickupWindowEnd, style = TanyTheme.typography.label)
+            BusinessDateTimeText(booking.pickupWindowStart, end = booking.pickupWindowEnd, style = TanyTheme.typography.bodyStrong)
         }
         TanyInfoRow(stringResource(R.string.booking_return_by), icon = DsR.drawable.ic_tany_return) {
-            BusinessDateTimeText(booking.returnDeadline, style = TanyTheme.typography.label)
+            BusinessDateTimeText(booking.returnDeadline, style = TanyTheme.typography.bodyStrong)
         }
-        booking.pricing?.let {
-            TanyDivider()
-            TanyInfoRow(stringResource(R.string.booking_total_due), emphasized = true) { MoneyText(it.totalDueAtPickup) }
-        }
-        booking.depositAction.label()?.let { TanyStatusChip(stringResource(it), TanyTone.WARNING, size = TanyChipSize.SMALL) }
     }
 }
 
@@ -1059,7 +875,7 @@ private val RETURN_INCIDENT_TYPES = listOf(IncidentType.DAMAGED, IncidentType.MI
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ReturnStatementForm(booking: MerchantBookingDetail, form: ReturnForm, update: ((ReturnForm) -> ReturnForm) -> Unit) {
+internal fun ReturnStatementForm(booking: MerchantBookingDetail, form: ReturnForm, update: ((ReturnForm) -> ReturnForm) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val accessories = booking.product.includedAccessories
         if (accessories.isNotEmpty()) {
@@ -1115,108 +931,6 @@ private fun IncidentType?.label(): Int = when (this) {
     IncidentType.HANDOVER_DISPUTED -> R.string.incident_type_handover_disputed
     IncidentType.ASSET_LOCATION_UNRESOLVED -> R.string.incident_type_location_unresolved
     else -> R.string.return_incident_other
-}
-
-/**
- * Waiting for the customer's confirmation in TANY (server phase `*_awaiting_customer`): what the merchant did, the
- * reassurance that the screen updates itself, and « Relancer le client » (server-throttled). « Toujours en attente »
- * comes from the SERVER flag `customerConfirmationOverdue` only — never from a local timer. There is never a
- * « confirm for the customer » action.
- */
-@Composable
-private fun WaitingCard(booking: MerchantBookingDetail, ui: PickupUiState, actions: PickupActions) {
-    val overdue = booking.customerConfirmationOverdue
-    val tone = if (overdue) TanyTone.DANGER else TanyTone.WARNING
-    val (headline, message) = when (booking.phase) {
-        MerchantPhase.PICKUP_AWAITING_CUSTOMER -> stringResource(R.string.waiting_pickup_done) to stringResource(R.string.waiting_pickup_message)
-        MerchantPhase.RETURN_AWAITING_CUSTOMER -> stringResource(R.string.waiting_return_done) to stringResource(R.string.waiting_return_message)
-        else -> {
-            val amount = booking.deposit?.refundedAmount?.takeIf { !it.isZero } ?: booking.deposit?.toRefundAmount ?: MoneyAmount.ZERO
-            stringResource(R.string.waiting_deposit_done, LocalTanyFormatters.current.money(amount)) to stringResource(R.string.waiting_deposit_message)
-        }
-    }
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(ui.nudgeAvailableAt) {
-        while (System.currentTimeMillis() < ui.nudgeAvailableAt) {
-            now = System.currentTimeMillis()
-            delay(1_000)
-        }
-        now = System.currentTimeMillis()
-    }
-    val cooldown = ((ui.nudgeAvailableAt - now + 999) / 1_000).toInt().coerceAtLeast(0)
-    TanyCard(accent = tone, contentPadding = 18.dp) {
-        Text(headline, style = TanyTheme.typography.label, color = TanyTheme.colors.success.accent)
-        TanyNotice(
-            title = stringResource(if (overdue) R.string.waiting_overdue else R.string.step_waiting),
-            message = message,
-            tone = tone,
-            icon = DsR.drawable.ic_tany_clock,
-        )
-        booking.waitingMinutes?.takeIf { it > 0 }?.let {
-            Text(stringResource(R.string.waiting_since, durationText(it)), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(painterResource(DsR.drawable.ic_tany_refresh), contentDescription = null, tint = TanyTheme.colors.textSubtle, modifier = Modifier.size(14.dp))
-            Text(stringResource(R.string.waiting_auto_refresh), style = TanyTheme.typography.caption, color = TanyTheme.colors.textSubtle)
-        }
-        TanyButton(
-            if (cooldown > 0) stringResource(R.string.nudge_cooldown, cooldown) else stringResource(R.string.nudge_action),
-            actions.nudge,
-            style = TanyButtonStyle.SECONDARY,
-            enabled = cooldown == 0,
-            loading = ui.nudging,
-            icon = DsR.drawable.ic_tany_bell,
-        )
-        ui.nudgeOutcome?.let {
-            Text(
-                stringResource(if (it == NudgeOutcome.SENT) R.string.nudge_sent else R.string.nudge_already_sent),
-                style = TanyTheme.typography.label,
-                color = TanyTheme.colors.textMuted,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-            )
-        }
-        if (overdue) {
-            Text(stringResource(R.string.waiting_later_note), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
-            TanyButton(stringResource(R.string.waiting_back_today), actions.finish, style = TanyButtonStyle.TEXT)
-        }
-    }
-}
-
-/** The customer just confirmed (server timestamp appeared): brief animated success, then back to the list. */
-@Composable
-private fun SuccessCard(step: CompletedStep, booking: MerchantBookingDetail, onFinish: () -> Unit, onDismiss: () -> Unit) {
-    val formatters = LocalTanyFormatters.current
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-    val scale by animateFloatAsState(if (visible) 1f else 0.6f, label = "success-scale")
-    val view = LocalView.current
-    LaunchedEffect(step) { view.confirmHaptic() }
-    val (title, message) = when (step) {
-        CompletedStep.PICKUP -> stringResource(R.string.success_pickup_title) to
-            stringResource(R.string.success_pickup_message, booking.product.name, booking.customer.shortName)
-        CompletedStep.RETURN -> stringResource(R.string.success_return_title) to
-            stringResource(R.string.success_return_message, booking.product.name, booking.customer.shortName)
-        CompletedStep.DEPOSIT -> stringResource(R.string.success_deposit_title) to
-            stringResource(R.string.success_deposit_message, formatters.money(booking.deposit?.refundedAmount ?: MoneyAmount.ZERO), booking.customer.shortName)
-    }
-    TanyCard(contentPadding = 20.dp, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TanyIllustration(DsR.drawable.ic_tany_check, tone = TanyTone.SUCCESS, size = 88.dp, modifier = Modifier.scale(scale))
-            Text(title, style = TanyTheme.typography.title, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
-            Text(message, style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted, textAlign = TextAlign.Center)
-            // Server facts only: deposit still held after a pickup, asset sent to inspection after a return.
-            if (step == CompletedStep.PICKUP) {
-                booking.deposit?.heldAmount?.takeIf { !it.isZero }?.let {
-                    Text(stringResource(R.string.success_deposit_held, formatters.money(it)), style = TanyTheme.typography.label, textAlign = TextAlign.Center)
-                }
-            }
-            if (booking.asset?.status == AssetStatus.INSPECTION) {
-                Text(stringResource(R.string.success_inspection), style = TanyTheme.typography.label, color = TanyTheme.colors.warning.content, textAlign = TextAlign.Center)
-            }
-        }
-        TanyButton(stringResource(R.string.success_finish), onFinish)
-        TanyButton(stringResource(R.string.success_stay), onDismiss, style = TanyButtonStyle.TEXT)
-    }
 }
 
 /** Cancelled booking: who cancelled comes from the server history (`BOOKING_CANCELLED.actorRole`). */
@@ -1306,6 +1020,8 @@ private fun IncidentSheet(busy: Boolean, onDismiss: () -> Unit, onSubmit: (Incid
 @Composable
 private fun BookingDetailsSections(booking: MerchantBookingDetail, endpoint: ApiEndpoint) {
     var zoomed by remember { mutableStateOf<String?>(null) }
+    val expandedLabel = stringResource(R.string.state_expanded)
+    val collapsedLabel = stringResource(R.string.state_collapsed)
     if (booking.photos.isNotEmpty()) {
         TanySectionHeader(stringResource(R.string.details_photos), trailing = booking.photos.size.toString(), modifier = Modifier.padding(top = 4.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1329,36 +1045,6 @@ private fun BookingDetailsSections(booking: MerchantBookingDetail, endpoint: Api
             }
         }
     }
-    val steps = buildList {
-        booking.pickup?.let { p ->
-            add(R.string.details_step_client_verified_pickup to p.clientVerifiedAt)
-            add(R.string.details_step_asset_verified_pickup to p.assetVerifiedAt)
-            add(R.string.details_step_handover_merchant to p.merchantConfirmedAt)
-            add(R.string.details_step_handover_customer to p.customerConfirmedAt)
-        }
-        booking.returnInfo?.let { r ->
-            add(R.string.details_step_client_verified_return to r.clientVerifiedAt)
-            add(R.string.details_step_asset_verified_return to r.assetVerifiedAt)
-            add(R.string.details_step_return_merchant to r.merchantConfirmedAt)
-            add(R.string.details_step_return_customer to r.customerConfirmedAt)
-        }
-        booking.deposit?.let { d ->
-            if (d.merchantRefundConfirmedAt != null || d.customerRefundConfirmedAt != null) {
-                add(R.string.details_step_deposit_merchant to d.merchantRefundConfirmedAt)
-                add(R.string.details_step_deposit_customer to d.customerRefundConfirmedAt)
-            }
-        }
-    }.filter { it.second != null }
-    if (steps.isNotEmpty()) {
-        TanySectionHeader(stringResource(R.string.details_steps), modifier = Modifier.padding(top = 4.dp))
-        TanyCard {
-            steps.forEach { (label, at) ->
-                TanyInfoRow(stringResource(label), icon = DsR.drawable.ic_tany_check) {
-                    at?.let { BusinessDateTimeText(it, style = TanyTheme.typography.label) }
-                }
-            }
-        }
-    }
     if (booking.incidents.isNotEmpty()) {
         TanySectionHeader(stringResource(R.string.details_incidents), trailing = booking.incidents.size.toString(), modifier = Modifier.padding(top = 4.dp))
         TanyCard {
@@ -1375,31 +1061,62 @@ private fun BookingDetailsSections(booking: MerchantBookingDetail, endpoint: Api
         }
     }
     if (booking.history.isNotEmpty()) {
-        TanySectionHeader(stringResource(R.string.details_history), modifier = Modifier.padding(top = 4.dp))
-        TanyCard {
-            booking.history.asReversed().forEach { entry ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(entry.type.label()), style = TanyTheme.typography.label)
-                        Text(stringResource(entry.actorRole.label()), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
+        // Secondary: folded by default (« Historique · 4 événements »), compact timeline when opened.
+        var open by rememberSaveable { mutableStateOf(false) }
+        val count = pluralStringResource(R.plurals.history_events, booking.history.size, booking.history.size)
+        TanyCard(contentPadding = 0.dp) {
+            TanyRow(
+                title = stringResource(R.string.details_history),
+                value = count,
+                leadingIcon = DsR.drawable.ic_tany_clock,
+                onClick = { open = !open },
+                showChevron = false,
+                trailing = {
+                    Icon(
+                        painterResource(DsR.drawable.ic_tany_chevron),
+                        contentDescription = null,
+                        tint = TanyTheme.colors.textSubtle,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .rotate(if (open) 90f else 0f),
+                    )
+                },
+                modifier = Modifier.semantics {
+                    stateDescription = if (open) expandedLabel else collapsedLabel
+                },
+            )
+            AnimatedVisibility(open) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    booking.history.asReversed().forEach { entry ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                            Icon(painterResource(DsR.drawable.ic_tany_check), contentDescription = null, tint = TanyTheme.colors.textSubtle, modifier = Modifier.size(14.dp).padding(top = 2.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(entry.type.label()), style = TanyTheme.typography.label)
+                                Text(stringResource(entry.actorRole.label()), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
+                            }
+                            BusinessDateTimeText(entry.at, style = TanyTheme.typography.caption, color = TanyTheme.colors.textSubtle)
+                        }
                     }
-                    BusinessDateTimeText(entry.at, style = TanyTheme.typography.caption, color = TanyTheme.colors.textSubtle)
                 }
             }
         }
     }
-    zoomed?.let { url ->
-        Dialog(onDismissRequest = { zoomed = null }) {
-            AsyncImage(
-                model = endpoint.resolveMedia(url),
-                contentDescription = stringResource(R.string.details_photos),
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(TanyTheme.radii.large)
-                    .clickable { zoomed = null },
-            )
-        }
+    zoomed?.let { url -> PhotoZoom(endpoint, url) { zoomed = null } }
+}
+
+/** Full-size view of an operation photo (tap or back to close). */
+@Composable
+internal fun PhotoZoom(endpoint: ApiEndpoint, url: String, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        AsyncImage(
+            model = endpoint.resolveMedia(url),
+            contentDescription = stringResource(R.string.details_photos),
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(TanyTheme.radii.large)
+                .clickable(onClick = onDismiss),
+        )
     }
 }
 

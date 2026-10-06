@@ -13,20 +13,18 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -36,7 +34,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -57,6 +54,24 @@ import ma.tany.collect.core.ui.messageRes
 import ma.tany.collect.core.ui.openingLabel
 import ma.tany.collect.core.ui.openingTone
 import ma.tany.collect.core.ui.toLoadState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import ma.tany.core.designsystem.component.MoneyText
+import ma.tany.core.designsystem.component.ProductImageSurface
+import ma.tany.core.designsystem.component.TanyButtonStyle
+import ma.tany.core.designsystem.component.TanyCardStyle
+import ma.tany.core.designsystem.component.TanyCodePill
+import ma.tany.core.designsystem.format.ltrIsolated
+import ma.tany.core.model.collect.MerchantPhase
+import ma.tany.core.model.collect.Operation
 import ma.tany.core.designsystem.R as DsR
 import ma.tany.core.designsystem.component.LocalTanyFormatters
 import ma.tany.core.designsystem.component.TanyBadge
@@ -67,7 +82,6 @@ import ma.tany.core.designsystem.component.TanyDivider
 import ma.tany.core.designsystem.component.TanyErrorState
 import ma.tany.core.designsystem.component.TanyIllustration
 import ma.tany.core.designsystem.component.TanyListSkeleton
-import ma.tany.core.designsystem.component.TanyMetricTile
 import ma.tany.core.designsystem.component.TanyNotice
 import ma.tany.core.designsystem.component.TanyRow
 import ma.tany.core.designsystem.component.TanySectionHeader
@@ -232,55 +246,75 @@ private fun TodayHeader(
     } else {
         stringResource(R.string.notifications_title)
     }
-    val scanHint = stringResource(R.string.today_scan_hint)
-    Column(
+    val scanLabel = stringResource(R.string.today_scan_hint)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(start = 20.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(date, style = TanyTheme.typography.label, color = colors.textMuted, maxLines = 1, modifier = Modifier.weight(1f))
-            TanyButton(
-                stringResource(R.string.nav_scan),
-                onScan,
-                fillWidth = false,
-                compact = true,
-                icon = DsR.drawable.ic_tany_scan,
-                modifier = Modifier.semantics { contentDescription = scanHint },
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(date, style = TanyTheme.typography.label, color = colors.textMuted)
+            // The active point is the title: every operation below belongs to it.
+            Text(
+                point?.shortName?.ifBlank { null } ?: fallbackName ?: stringResource(R.string.today_title),
+                style = TanyTheme.typography.largeTitle,
+                color = colors.textPrimary,
+                modifier = Modifier.semantics { heading() },
             )
-            if (inboxEnabled) {
-                IconButton(onClick = onOpenNotifications, modifier = Modifier.semantics { contentDescription = notificationsLabel }) {
-                    BadgedBox(badge = { if (unread > 0) TanyBadge(if (unread > 99) "99+" else unread.toString()) }) {
-                        Icon(painterResource(DsR.drawable.ic_tany_bell), contentDescription = null, tint = colors.textPrimary)
+            if (point != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TanyStatusChip(point.openingLabel(), point.openingTone(), size = TanyChipSize.SMALL)
+                    if (completedToday > 0) {
+                        Text(
+                            pluralStringResource(R.plurals.today_completed_inline, completedToday, completedToday),
+                            style = TanyTheme.typography.caption,
+                            color = colors.textMuted,
+                        )
                     }
                 }
             }
         }
-        // The active point is the title: every operation below belongs to it.
-        Text(
-            point?.shortName?.ifBlank { null } ?: fallbackName ?: stringResource(R.string.today_title),
-            style = TanyTheme.typography.largeTitle,
-            color = colors.textPrimary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .padding(end = 12.dp)
-                .semantics { heading() },
-        )
-        if (point != null) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TanyStatusChip(point.openingLabel(), point.openingTone(), size = TanyChipSize.SMALL)
-                if (completedToday > 0) {
-                    Text(
-                        pluralStringResource(R.plurals.today_completed_inline, completedToday, completedToday),
-                        style = TanyTheme.typography.caption,
-                        color = colors.textMuted,
-                    )
+        // Quiet, always-there actions: the scanner is one tap away without dominating the header.
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            HeaderAction(DsR.drawable.ic_tany_scan, scanLabel, onScan, emphasized = true)
+            if (inboxEnabled) {
+                Box {
+                    HeaderAction(DsR.drawable.ic_tany_bell, notificationsLabel, onOpenNotifications)
+                    if (unread > 0) {
+                        TanyBadge(
+                            if (unread > 99) "99+" else unread.toString(),
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .clearAndSetSemantics { },
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/** 48 dp round header action (tonal when [emphasized]). */
+@Composable
+private fun HeaderAction(@DrawableRes icon: Int, label: String, onClick: () -> Unit, emphasized: Boolean = false) {
+    val colors = TanyTheme.colors
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(if (emphasized) colors.accentContainer else colors.neutral)
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painterResource(icon),
+            contentDescription = null,
+            tint = if (emphasized) colors.onAccentContainer else colors.textPrimary,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 
@@ -293,32 +327,19 @@ private fun TodayContent(
     refreshError: ApiError?,
     updatedAt: Instant?,
 ) {
-    val sections = remember(today.operations) { groupBySection(today.operations) }
-    var showCompleted by rememberSaveable { mutableStateOf(true) }
+    val hero = remember(today.operations) { pickHero(today.operations) }
+    val sections = remember(today.operations, hero) { homeSections(today.operations, hero) }
+    var showCompleted by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val formatters = LocalTanyFormatters.current
     val onlyNoShow = today.operations.isNotEmpty() && today.operations.all { it.phase.ui().section == OperationSection.NO_SHOW }
-    // Index of each section header in the list (for the counter tiles): counts, [stale notice], [under control].
-    val sectionIndex = remember(sections, refreshError, onlyNoShow) {
-        val map = mutableMapOf<OperationSection, Int>()
-        var index = 1 + (if (refreshError != null) 1 else 0) + (if (onlyNoShow) 1 else 0)
-        sections.forEach { (section, ops) ->
-            map[section] = index
-            index += 1 + (if (ops.isEmpty()) 1 else ops.size)
-        }
-        map
-    }
-    val jumpTo: (OperationSection) -> Unit = { section ->
-        sectionIndex[section]?.let { scope.launch { listState.animateScrollToItem(it) } }
-    }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item(key = "counts") { CountsGrid(today.counts, onJump = jumpTo) }
         if (refreshError != null) {
             item(key = "stale") {
                 TanyNotice(
@@ -331,30 +352,28 @@ private fun TodayContent(
         if (today.operations.isEmpty()) {
             item(key = "empty") { EmptyDay(completed = today.completedToday.size, shortcuts = shortcuts) }
         } else {
+            hero?.let { op ->
+                item(key = "hero-${op.id}") {
+                    HeroOperationCard(op, endpoint, onOpen = { onOpenBooking(op.id) }, modifier = Modifier.animateItem())
+                }
+            }
             if (onlyNoShow) item(key = "under-control") { UnderControlCard() }
+            item(key = "summary") {
+                TodaySummary(today.counts) { target ->
+                    sectionIndexOf(sections, target, hasStale = refreshError != null, hasHero = hero != null, onlyNoShow = onlyNoShow)
+                        ?.let { scope.launch { listState.animateScrollToItem(it) } }
+                }
+            }
             sections.forEach { (section, operations) ->
-                item(key = "header-${section.name}") {
+                item(key = "section-${section.name}") {
                     TanySectionHeader(
                         title = stringResource(section.title()),
                         trailing = operations.size.toString(),
-                        modifier = Modifier.padding(top = 10.dp),
+                        modifier = Modifier.padding(top = 8.dp),
                     )
                 }
-                if (operations.isEmpty()) {
-                    item(key = "empty-${section.name}") {
-                        section.emptyLine()?.let {
-                            Text(
-                                stringResource(it),
-                                style = TanyTheme.typography.label,
-                                color = TanyTheme.colors.textMuted,
-                                modifier = Modifier.padding(horizontal = 4.dp),
-                            )
-                        }
-                    }
-                } else {
-                    items(operations, key = { "op-${it.id}" }) { op ->
-                        OperationCard(op, endpoint, onClick = { onOpenBooking(op.id) })
-                    }
+                items(operations, key = { "op-${it.id}" }) { op ->
+                    OperationCard(op, endpoint, onClick = { onOpenBooking(op.id) }, modifier = Modifier.animateItem())
                 }
             }
         }
@@ -365,7 +384,7 @@ private fun TodayContent(
                     trailing = stringResource(if (showCompleted) R.string.today_completed_hide else R.string.today_completed_show) +
                         " (${today.completedToday.size})",
                     onTrailingClick = { showCompleted = !showCompleted },
-                    modifier = Modifier.padding(top = 10.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
             if (showCompleted) {
@@ -390,34 +409,179 @@ private fun TodayContent(
     }
 }
 
-/** The four server counters (2 × 2); a tile jumps to its section. A zero is muted, a late return is red. */
+/** List index of a Home section header (items: [stale], [hero], [under control], summary, then sections). */
+internal fun sectionIndexOf(
+    sections: List<Pair<HomeSection, List<ma.tany.core.model.collect.Operation>>>,
+    target: HomeSection,
+    hasStale: Boolean,
+    hasHero: Boolean,
+    onlyNoShow: Boolean,
+): Int? {
+    var index = (if (hasStale) 1 else 0) + (if (hasHero) 1 else 0) + (if (onlyNoShow) 1 else 0) + 1
+    sections.forEach { (section, ops) ->
+        if (section == target) return index
+        index += 1 + ops.size
+    }
+    return null
+}
+
+/**
+ * The next meaningful operation, large: what (type + server status), WHEN (the dominant line), the object (big image,
+ * full name), who, and the cash at stake when relevant. One clear CTA opens it.
+ */
 @Composable
-private fun CountsGrid(counts: TodayCounts, onJump: (OperationSection) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CountTile(counts.toCollect, R.string.count_pickups, DsR.drawable.ic_tany_pickup, null, Modifier.weight(1f)) { onJump(OperationSection.TO_COLLECT) }
-            CountTile(counts.toReturn, R.string.count_returns, DsR.drawable.ic_tany_return, null, Modifier.weight(1f)) { onJump(OperationSection.TO_RETURN) }
+private fun HeroOperationCard(operation: Operation, endpoint: ApiEndpoint, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val formatters = LocalTanyFormatters.current
+    val colors = TanyTheme.colors
+    val phase = operation.phase.ui()
+    val time = operation.rowTime()
+    val timeText = time.end?.let { formatters.businessTimeRange(time.start, it) } ?: formatters.businessTime(time.start)
+    val summary = operation.spokenSummary()
+    val openLabel = stringResource(R.string.operation_open)
+    TanyCard(
+        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = summary },
+        onClick = onOpen,
+        onClickLabel = openLabel,
+        accent = phase.tone.takeIf { it == TanyTone.DANGER },
+        contentPadding = 20.dp,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(operation.heroHeadline()),
+                style = TanyTheme.typography.overline,
+                color = colors.textMuted,
+                modifier = Modifier.weight(1f),
+            )
+            TanyStatusChip(stringResource(phase.short), phase.tone, size = TanyChipSize.SMALL)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CountTile(counts.awaitingCustomer, R.string.count_awaiting_customer, DsR.drawable.ic_tany_clock, TanyTone.WARNING, Modifier.weight(1f)) {
-                onJump(OperationSection.AWAITING_CUSTOMER)
+        Text(
+            (time.prefix?.let { stringResource(it) + " " } ?: "") + ltrIsolated(timeText),
+            style = TanyTheme.typography.largeTitle.copy(fontFeatureSettings = "tnum"),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            ProductImageSurface(
+                url = endpoint.resolveMedia(operation.product.displayImage),
+                contentDescription = null,
+                modifier = Modifier.width(112.dp),
+                padding = 10.dp,
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(operation.product.name, style = TanyTheme.typography.title)
+                Text(
+                    "${operation.customer.shortName} · ${ltrIsolated(operation.reference)}",
+                    style = TanyTheme.typography.label,
+                    color = colors.textMuted,
+                )
+                operation.assetCode?.let { TanyCodePill(ltrIsolated(it)) }
             }
-            CountTile(counts.late, R.string.count_late, DsR.drawable.ic_tany_warning, TanyTone.DANGER, Modifier.weight(1f)) { onJump(OperationSection.LATE) }
         }
+        val period = operation.effectiveUsagePeriod()
+        if (period.dayCount > 1) {
+            Text(
+                "${pluralStringResource(R.plurals.booking_days, period.dayCount, period.dayCount)} · ${formatters.usagePeriod(period.startDate, period.endDate)}",
+                style = TanyTheme.typography.label,
+                color = colors.textMuted,
+            )
+        }
+        operation.rowMoney()?.let { money ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(money.label), style = TanyTheme.typography.body, color = colors.textMuted, modifier = Modifier.weight(1f))
+                MoneyText(money.amount, style = TanyTheme.typography.amount)
+            }
+        }
+        operation.exceptionLine()?.let { (text, tone) ->
+            TanyNotice(message = text, tone = if (tone == TanyTone.NEUTRAL) TanyTone.INFO else tone, icon = DsR.drawable.ic_tany_clock)
+        }
+        // A real action only when the SERVER says the operation can be worked on now; otherwise just « Voir ».
+        TanyButton(
+            stringResource(operation.heroCta()),
+            onOpen,
+            style = if (operation.heroTier()?.let { it <= 2 } == true) TanyButtonStyle.PRIMARY else TanyButtonStyle.SECONDARY,
+            icon = operation.kind.icon(),
+        )
     }
 }
 
+@StringRes
+private fun Operation.heroHeadline(): Int = when (phase) {
+    MerchantPhase.RETURN_LATE -> R.string.hero_late
+    MerchantPhase.PICKUP_IN_PROGRESS, MerchantPhase.RETURN_IN_PROGRESS -> R.string.hero_in_progress
+    MerchantPhase.PICKUP_READY, MerchantPhase.PICKUP_UPCOMING -> R.string.hero_to_collect
+    MerchantPhase.RETURN_DUE, MerchantPhase.WITH_CUSTOMER -> R.string.hero_to_return
+    MerchantPhase.DEPOSIT_TO_REFUND -> R.string.hero_deposit
+    else -> R.string.hero_awaiting
+}
+
+@StringRes
+private fun Operation.heroCta(): Int = when (phase) {
+    MerchantPhase.PICKUP_READY -> R.string.stage_start_pickup
+    MerchantPhase.PICKUP_IN_PROGRESS -> R.string.stage_resume_pickup
+    MerchantPhase.RETURN_DUE, MerchantPhase.RETURN_LATE -> R.string.stage_start_return
+    MerchantPhase.RETURN_IN_PROGRESS -> R.string.stage_resume_return
+    MerchantPhase.DEPOSIT_TO_REFUND -> R.string.stage_resume_deposit
+    else -> R.string.hero_view
+}
+
+/**
+ * Today's server counters as one calm strip: zeros stay quiet, a late return is the only red. Tapping a non-zero counter
+ * scrolls to its section. Everything at zero collapses to a single reassuring line.
+ */
 @Composable
-private fun CountTile(value: Int, @StringRes label: Int, @DrawableRes icon: Int, tone: TanyTone?, modifier: Modifier, onClick: () -> Unit) {
-    TanyMetricTile(
-        value = value.toString(),
-        label = stringResource(label),
-        modifier = modifier,
-        tone = tone.takeIf { value > 0 },
-        icon = icon,
-        muted = value == 0,
-        onClick = onClick,
+private fun TodaySummary(counts: TodayCounts, onJump: (HomeSection) -> Unit) {
+    val colors = TanyTheme.colors
+    val entries = listOf(
+        Triple(counts.late, R.string.count_late, HomeSection.NOW),
+        Triple(counts.toCollect, R.string.count_pickups, HomeSection.TO_COLLECT),
+        Triple(counts.toReturn, R.string.count_returns, HomeSection.TO_RETURN),
+        Triple(counts.awaitingCustomer, R.string.count_awaiting_customer, HomeSection.AWAITING_CUSTOMER),
     )
+    if (entries.all { it.first == 0 }) {
+        Text(
+            stringResource(R.string.summary_all_clear),
+            style = TanyTheme.typography.label,
+            color = colors.textMuted,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+        return
+    }
+    TanyCard(style = TanyCardStyle.FILLED, contentPadding = 6.dp) {
+        Row(Modifier.fillMaxWidth()) {
+            entries.forEach { (value, label, target) ->
+                val late = target == HomeSection.NOW && value > 0
+                val text = stringResource(label)
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 56.dp)
+                        .clip(TanyTheme.radii.medium)
+                        .then(
+                            if (value > 0) Modifier.clickable(role = Role.Button, onClickLabel = text) { onJump(target) } else Modifier,
+                        )
+                        .semantics(mergeDescendants = true) { contentDescription = "$value $text" }
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        value.toString(),
+                        style = if (value > 0) TanyTheme.typography.title else TanyTheme.typography.headline,
+                        color = when {
+                            late -> colors.danger.accent
+                            value > 0 -> colors.textPrimary
+                            else -> colors.textSubtle
+                        },
+                    )
+                    Text(
+                        text,
+                        style = TanyTheme.typography.caption,
+                        color = if (late) colors.danger.accent else colors.textMuted,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                    )
+                }
+            }
+        }
+    }
 }
 
 /** Only no-shows left: nothing urgent (iOS « Tout est sous contrôle »). */
@@ -460,14 +624,6 @@ private fun EmptyDay(completed: Int, shortcuts: TodayShortcuts) {
                 )
             }
         }
-        TanySectionHeader(stringResource(R.string.today_what_appears), modifier = Modifier.padding(top = 4.dp))
-        TanyCard(contentPadding = 0.dp) {
-            Explainer(DsR.drawable.ic_tany_pickup, R.string.today_explain_pickup_title, R.string.today_explain_pickup)
-            TanyDivider(inset = 66.dp)
-            Explainer(DsR.drawable.ic_tany_return, R.string.today_explain_return_title, R.string.today_explain_return)
-            TanyDivider(inset = 66.dp)
-            Explainer(DsR.drawable.ic_tany_cash, R.string.today_explain_deposit_title, R.string.today_explain_deposit)
-        }
         TanySectionHeader(stringResource(R.string.today_shortcuts), modifier = Modifier.padding(top = 4.dp))
         TanyCard(contentPadding = 0.dp) {
             TanyRow(
@@ -495,9 +651,4 @@ private fun EmptyDay(completed: Int, shortcuts: TodayShortcuts) {
             }
         }
     }
-}
-
-@Composable
-private fun Explainer(@DrawableRes icon: Int, @StringRes title: Int, @StringRes text: Int) {
-    TanyRow(title = stringResource(title), subtitle = stringResource(text), leadingIcon = icon)
 }

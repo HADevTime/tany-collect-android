@@ -2,6 +2,16 @@ package ma.tany.collect.navigation
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.clickable
 import androidx.activity.ComponentActivity
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -26,9 +36,9 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.res.painterResource
@@ -70,7 +80,6 @@ import ma.tany.collect.feature.revenue.SettlementScreen
 import ma.tany.collect.feature.point.PointPickerScreen
 import ma.tany.collect.feature.operations.OperationScanScreen
 import ma.tany.collect.feature.scanner.ScanTarget
-import ma.tany.core.model.common.QrPurpose
 import ma.tany.collect.feature.today.TodayScreen
 import ma.tany.collect.feature.today.TodayShortcuts
 import ma.tany.collect.internal.InternalTools
@@ -169,7 +178,51 @@ class ShellViewModel @Inject constructor(
     }
 }
 
-private data class Tab(val route: Any, val type: KClass<*>, @StringRes val label: Int, @DrawableRes val icon: Int)
+internal data class Tab(val route: Any, val type: KClass<*>, @StringRes val label: Int, @DrawableRes val icon: Int)
+
+/**
+ * Persistent destinations of the bottom bar. Navigation decision (docs/UX_REWORK.md § 5): 4 content destinations
+ * (Matériel only when the server module is ON) + the Scanner as a separate ACTION — it is a gesture, not a place.
+ */
+internal fun bottomTabs(assetsEnabled: Boolean): List<Tab> = buildList {
+    add(Tab(TodayRoute, TodayRoute::class, R.string.nav_today, DsR.drawable.ic_tany_home))
+    add(Tab(ActivityRoute, ActivityRoute::class, R.string.nav_activity, DsR.drawable.ic_tany_list))
+    if (assetsEnabled) add(Tab(EquipmentRoute, EquipmentRoute::class, R.string.nav_equipment, DsR.drawable.ic_tany_box))
+    add(Tab(AccountRoute, AccountRoute::class, R.string.nav_account, DsR.drawable.ic_tany_person))
+}
+
+/** Bar slots: the tabs with the Scanner action (null) in the middle — after Today and Activity, under the thumb. */
+internal fun bottomBarSlots(tabs: List<Tab>): List<Tab?> = tabs.take(2) + listOf(null) + tabs.drop(2)
+
+/**
+ * The Scanner action of the bar: a filled accent button (56 × 40 dp, label below), visibly an action rather than a
+ * selectable tab; it opens the full-screen scanner from anywhere.
+ */
+@Composable
+private fun RowScope.ScanBarAction(onClick: () -> Unit) {
+    val colors = TanyTheme.colors
+    val label = stringResource(R.string.nav_scan)
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .heightIn(min = 64.dp)
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.today_scan_hint), onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = label },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            Modifier
+                .size(width = 56.dp, height = 40.dp)
+                .clip(TanyTheme.radii.pill)
+                .background(colors.accent),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(DsR.drawable.ic_tany_scan), contentDescription = null, tint = colors.onAccent)
+        }
+        Text(label, style = TanyTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary, modifier = Modifier.padding(top = 4.dp))
+    }
+}
 
 @Composable
 private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) {
@@ -177,13 +230,8 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
     val meState by shell.me.collectAsStateWithLifecycle()
     val me = (meState as? LoadState.Loaded)?.value
     val pointName = me?.collectPoints?.firstOrNull { it.id == pointId }?.shortName
-    val tabs = buildList {
-        add(Tab(TodayRoute, TodayRoute::class, R.string.nav_today, DsR.drawable.ic_tany_home))
-        add(Tab(ScanRoute, ScanRoute::class, R.string.nav_scan, DsR.drawable.ic_tany_scan))
-        add(Tab(ActivityRoute, ActivityRoute::class, R.string.nav_activity, DsR.drawable.ic_tany_list))
-        if (me?.features?.assets == true) add(Tab(EquipmentRoute, EquipmentRoute::class, R.string.nav_equipment, DsR.drawable.ic_tany_box))
-        add(Tab(AccountRoute, AccountRoute::class, R.string.nav_account, DsR.drawable.ic_tany_person))
-    }
+    // Content destinations only; the Scanner is an ACTION (centre of the bar), not a tab — see [bottomBarSlots].
+    val tabs = bottomTabs(assetsEnabled = me?.features?.assets == true)
 
     val navController = rememberNavController()
     NewIntentDeepLinks(navController)
@@ -211,40 +259,39 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
                 Column {
                     TanyDivider()
                     NavigationBar(containerColor = colors.surface, tonalElevation = 0.dp) {
-                        tabs.forEach { tab ->
-                            val selected = destination?.hierarchy?.any { it.hasRoute(tab.type) } == true
-                            val badge = if (tab.route == TodayRoute) attention else 0
-                            val badgeLabel = if (badge > 0) pluralStringResource(R.plurals.nav_today_attention, badge, badge) else null
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = { navController.navigateTab(tab.route) },
-                                modifier = if (badgeLabel != null) Modifier.semantics { stateDescription = badgeLabel } else Modifier,
-                                icon = {
-                                    if (tab.route == ScanRoute) {
-                                        // The Scanner is the counter's main gesture: always highlighted (iOS central pink tab).
-                                        Box(
-                                            Modifier
-                                                .clip(TanyTheme.radii.pill)
-                                                .background(colors.accent)
-                                                .padding(horizontal = 14.dp, vertical = 4.dp),
-                                        ) {
-                                            Icon(painterResource(tab.icon), contentDescription = null, tint = colors.onAccent)
-                                        }
-                                    } else {
+                        bottomBarSlots(tabs).forEach { tab ->
+                            if (tab == null) {
+                                ScanBarAction(onClick = { navController.navigate(ScanRoute) { launchSingleTop = true } })
+                            } else {
+                                val selected = destination?.hierarchy?.any { it.hasRoute(tab.type) } == true
+                                val badge = if (tab.route == TodayRoute) attention else 0
+                                val badgeLabel = if (badge > 0) pluralStringResource(R.plurals.nav_today_attention, badge, badge) else null
+                                NavigationBarItem(
+                                    selected = selected,
+                                    onClick = { navController.navigateTab(tab.route) },
+                                    modifier = if (badgeLabel != null) Modifier.semantics { stateDescription = badgeLabel } else Modifier,
+                                    icon = {
                                         BadgedBox(badge = { if (badge > 0) TanyBadge(if (badge > 99) "99+" else badge.toString(), tone = TanyTone.DANGER) }) {
                                             Icon(painterResource(tab.icon), contentDescription = null)
                                         }
-                                    }
-                                },
-                                label = { Text(stringResource(tab.label), maxLines = 1) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = colors.onAccentContainer,
-                                    indicatorColor = colors.accentContainer,
-                                    selectedTextColor = colors.textPrimary,
-                                    unselectedIconColor = colors.textMuted,
-                                    unselectedTextColor = colors.textMuted,
-                                ),
-                            )
+                                    },
+                                    // Calm selection: ink icon + bold label, no pill (state is also announced by TalkBack).
+                                    label = {
+                                        Text(
+                                            stringResource(tab.label),
+                                            maxLines = 1,
+                                            style = if (selected) TanyTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold) else TanyTheme.typography.caption,
+                                        )
+                                    },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = colors.textPrimary,
+                                        indicatorColor = Color.Transparent,
+                                        selectedTextColor = colors.textPrimary,
+                                        unselectedIconColor = colors.textMuted,
+                                        unselectedTextColor = colors.textMuted,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }
@@ -262,15 +309,21 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
                     onCounts = { shell.onTodayCounts(pointId, it) },
                     onOpenBooking = openBooking,
                     shortcuts = TodayShortcuts(
-                        scan = { navController.navigateTab(ScanRoute) },
+                        scan = { navController.navigate(ScanRoute) { launchSingleTop = true } },
                         activity = { navController.navigateTab(ActivityRoute) },
                         equipment = if (me?.features?.assets == true) ({ navController.navigateTab(EquipmentRoute) }) else null,
                     ),
                 )
             }
             composable<ScanRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.SCAN })) {
-                // Scanner tab: the server resolves the booking and the purpose from the customer's code.
-                OperationScanScreen(pointId = pointId, onDone = openBooking, onBack = null, pointName = pointName)
+                // Full-screen scanner: the server resolves the booking and the purpose from the customer's code, then the
+                // operation opens directly (the scanner leaves the back stack: back from the operation = where we were).
+                OperationScanScreen(
+                    pointId = pointId,
+                    onDone = { id -> navController.navigate(BookingRoute(id)) { popUpTo<ScanRoute> { inclusive = true } } },
+                    onBack = { navController.popBackStack() },
+                    pointName = pointName,
+                )
             }
             composable<OperationScanRoute> {
                 OperationScanScreen(

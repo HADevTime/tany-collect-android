@@ -60,6 +60,20 @@ enum class MerchantDepositAction(override val wire: String) : WireEnum {
     object Serializer : WireEnumSerializer<MerchantDepositAction>("MerchantDepositAction", entries, UNKNOWN)
 }
 
+/**
+ * Deposit hand-back orchestration (server, additive `deposit.handBackMode`): [IMMEDIATE] = handed back at the counter
+ * in the same session as the return, NO client QR; [DEFERRED] = the customer comes back later, the `DEPOSIT_REFUND` QR
+ * (or 6-digit fallback) is required. Absent = no hand-back expected / older backend.
+ */
+@Serializable(with = DepositHandBackMode.Serializer::class)
+enum class DepositHandBackMode(override val wire: String) : WireEnum {
+    IMMEDIATE("IMMEDIATE"),
+    DEFERRED("DEFERRED"),
+    UNKNOWN("");
+
+    object Serializer : WireEnumSerializer<DepositHandBackMode>("DepositHandBackMode", entries, UNKNOWN)
+}
+
 /** History actor role. */
 @Serializable(with = ActorRole.Serializer::class)
 enum class ActorRole(override val wire: String) : WireEnum {

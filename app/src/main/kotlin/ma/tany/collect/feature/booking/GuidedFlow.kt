@@ -428,7 +428,8 @@ private fun DepositStep(booking: MerchantBookingDetail, ui: PickupUiState, actio
     }
     // Deferred refund: the hand-back is offered once the SERVER recorded the customer's deposit QR (≤ 15 min).
     val qrMissing = ui.failed == PickupGesture.DEPOSIT_REFUND && ui.error == CollectOperationError.DepositRefundQrRequired
-    val qrPending = refundPickup?.qrRequired == true && (refundPickup.verifiedAt == null || qrMissing)
+    // IMMEDIATE hand-back (same session as the return, incl. a late-return retention): no QR, ever.
+    val qrPending = deposit.isDeferredHandBack && refundPickup != null && (refundPickup.verifiedAt == null || qrMissing)
     if (qrPending) {
         TanyNotice(message = stringResource(R.string.flow_deposit_qr_message), tone = TanyTone.INFO, icon = DsR.drawable.ic_tany_qr)
         TanyButton(stringResource(R.string.deposit_scan_qr), actions.scanDepositQr, icon = DsR.drawable.ic_tany_qr, enabled = !busy)

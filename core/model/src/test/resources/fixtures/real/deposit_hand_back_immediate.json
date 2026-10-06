@@ -1,0 +1,257 @@
+{
+  "booking": {
+    "id": "0ca0f114-ae51-44f4-81b9-cb91d81f2110",
+    "reference": "TNY-1851",
+    "kind": "RETURN",
+    "phase": "deposit_to_refund",
+    "scheduledAt": "2026-10-08T17:00:00.000Z",
+    "windowEnd": null,
+    "returnDeadline": "2026-10-08T17:00:00.000Z",
+    "usageDate": "2026-10-08",
+    "usageEndDate": "2026-10-08",
+    "dayCount": 1,
+    "returnWindowStart": "2026-10-08T15:00:00.000Z",
+    "dailyPrice": 150,
+    "usagePeriod": {
+      "startDate": "2026-10-08",
+      "endDate": "2026-10-08",
+      "dayCount": 1
+    },
+    "pricing": {
+      "dailyPrice": 150,
+      "dayCount": 1,
+      "rentalTotal": 150,
+      "deposit": 300,
+      "currency": "MAD",
+      "totalDueAtPickup": 450
+    },
+    "pickupWindowStart": "2026-10-08T07:00:00.000Z",
+    "pickupWindowEnd": "2026-10-08T09:00:00.000Z",
+    "customer": {
+      "shortName": "u-late-c1 T.",
+      "phoneLast4": "0961",
+      "trusted": null,
+      "firstName": "u-late-c1",
+      "identity": {
+        "verified": false,
+        "label": null,
+        "profilePhotoUrl": null
+      }
+    },
+    "product": {
+      "id": "prod-late",
+      "name": "prod-late",
+      "image": "",
+      "catalogImageUrl": null,
+      "includedAccessories": []
+    },
+    "assetCode": "LAT001",
+    "rentalAmount": 150,
+    "depositAmount": 300,
+    "depositRefundAmount": 255,
+    "depositAction": "HAND_BACK",
+    "depositHeadline": "Caution à rembourser : 255 DH (retenue TANY : 45 DH)",
+    "depositLatePenaltyAmount": 45,
+    "depositLatePenaltyReasonCode": "LATE_RETURN",
+    "depositRefundedAmount": 0,
+    "depositState": "PARTIAL_REFUND_PENDING",
+    "currency": "MAD",
+    "lateMinutes": null,
+    "nextBookingAt": null,
+    "waitingSince": null,
+    "waitingMinutes": null,
+    "customerConfirmationOverdue": false,
+    "updatedAt": "2026-10-08T20:03:00.000Z",
+    "completedAt": null,
+    "status": "RETURNED",
+    "asset": {
+      "id": "a-late-1",
+      "code": "LAT001",
+      "status": "AVAILABLE",
+      "condition": "good",
+      "nextBookingAt": null,
+      "nextBookingReference": null,
+      "nextBookingWindowEnd": null,
+      "nextBookingUsagePeriod": null,
+      "turnaroundMinutes": 90
+    },
+    "rental": {
+      "startDate": "2026-10-08",
+      "endDate": "2026-10-08",
+      "dayCount": 1,
+      "dailyPrice": 150,
+      "total": 150,
+      "currency": "MAD"
+    },
+    "pickup": {
+      "windowStart": "2026-10-08T07:00:00.000Z",
+      "windowEnd": "2026-10-08T09:00:00.000Z",
+      "startedAt": "2026-10-08T07:15:00.000Z",
+      "completionDeadline": null,
+      "clientVerifiedAt": "2026-10-08T07:15:00.000Z",
+      "assetVerifiedAt": "2026-10-08T07:15:00.000Z",
+      "photoCount": 1,
+      "condition": "good",
+      "merchantConfirmedAt": "2026-10-08T07:15:00.000Z",
+      "customerConfirmedAt": "2026-10-08T07:16:00.000Z",
+      "collectedAt": "2026-10-08T07:16:00.000Z"
+    },
+    "return": {
+      "deadline": "2026-10-08T17:00:00.000Z",
+      "windowStart": "2026-10-08T15:00:00.000Z",
+      "clientVerifiedAt": "2026-10-08T20:02:00.000Z",
+      "assetVerifiedAt": "2026-10-08T20:02:00.000Z",
+      "photoCount": 1,
+      "condition": "good",
+      "incidentType": null,
+      "merchantConfirmedAt": "2026-10-08T20:02:00.000Z",
+      "customerConfirmedAt": "2026-10-08T20:03:00.000Z",
+      "returnedAt": "2026-10-08T20:03:00.000Z"
+    },
+    "payment": {
+      "method": "CASH_AT_COLLECT_POINT",
+      "status": "PAID",
+      "paidAt": "2026-10-08T07:15:00.000Z",
+      "rentalAmount": 150,
+      "depositAmount": 300,
+      "totalDueAtPickup": 450
+    },
+    "deposit": {
+      "status": "HELD",
+      "amount": 300,
+      "expectedRefundAmount": 255,
+      "merchantRefundConfirmedAt": null,
+      "customerRefundConfirmedAt": null,
+      "customerPaidConfirmedAt": "2026-10-08T07:16:00.000Z",
+      "state": "PARTIAL_REFUND_PENDING",
+      "merchantAction": "HAND_BACK",
+      "headline": "Caution à rembourser : 255 DH (retenue TANY : 45 DH)",
+      "heldAmount": 300,
+      "toRefundAmount": 255,
+      "refundedAmount": 0,
+      "retainedAmount": 45,
+      "currency": "MAD",
+      "latePenaltyAmount": 45,
+      "latePenaltyReasonCode": "LATE_RETURN",
+      "refundableAmount": 255,
+      "handBackMode": "IMMEDIATE",
+      "refundPickup": null
+    },
+    "incidents": [],
+    "photos": [
+      {
+        "id": "ph-0ca0f114-ae51-44f4-81b9-cb91d81f2110-PICKUP",
+        "type": "PICKUP",
+        "condition": "good",
+        "url": "/api/photos/ph-0ca0f114-ae51-44f4-81b9-cb91d81f2110-PICKUP/1791321660/kQ6Yd9oDfYES9PnqVxD55nwFA7s8d2eIU5mfLYXthW8",
+        "createdAt": "2026-10-06T20:20:55.516Z"
+      },
+      {
+        "id": "ph-0ca0f114-ae51-44f4-81b9-cb91d81f2110-RETURN",
+        "type": "RETURN",
+        "condition": "good",
+        "url": "/api/photos/ph-0ca0f114-ae51-44f4-81b9-cb91d81f2110-RETURN/1791321660/Put73nzOYXs13Ulk76CiXpqV5xgFXyXSZQ9GEJ3ZaJs",
+        "createdAt": "2026-10-06T20:20:55.650Z"
+      }
+    ],
+    "history": [
+      {
+        "id": "94bc32ef-1bf1-402d-932a-6be583baf030",
+        "type": "BOOKING_CREATED",
+        "label": "Réservation créée",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-06T20:20:55.492Z"
+      },
+      {
+        "id": "e006a68f-baaa-439a-b177-f51a371197fe",
+        "type": "PICKUP_QR_VERIFIED",
+        "label": "QR client vérifié (collecte)",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-06T20:20:55.508Z"
+      },
+      {
+        "id": "eca389d5-e88f-4e6f-8392-4af3b68df96f",
+        "type": "PICKUP_ASSET_VERIFIED",
+        "label": "Objet vérifié (collecte)",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-06T20:20:55.512Z"
+      },
+      {
+        "id": "f5db5a22-e5b3-4eba-a689-ffa52afd6d4c",
+        "type": "PAYMENT_CONFIRMED",
+        "label": "Paiement et caution reçus",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-06T20:20:55.530Z"
+      },
+      {
+        "id": "94df46c7-504d-4f0c-b91d-1b2eea5e2a00",
+        "type": "PICKUP_CONFIRMED_MERCHANT",
+        "label": "Remise confirmée par le commerçant",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-06T20:20:55.574Z"
+      },
+      {
+        "id": "b7fdc384-1cea-4715-ade1-4894fd97016f",
+        "type": "PICKUP_CONFIRMED_CUSTOMER",
+        "label": "Réception confirmée par le client",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-06T20:20:55.578Z"
+      },
+      {
+        "id": "a3b1c15f-cc38-4f7e-80ac-1009d99f52b9",
+        "type": "ASSET_COLLECTED",
+        "label": "Objet remis au client",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-06T20:20:55.594Z"
+      },
+      {
+        "id": "a217c828-8496-4d0d-8618-879b810bcd63",
+        "type": "RETURN_QR_VERIFIED",
+        "label": "QR client vérifié (retour)",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-06T20:20:55.641Z"
+      },
+      {
+        "id": "9ded5abe-0fe0-4384-95c2-0df4c9db85d1",
+        "type": "RETURN_ASSET_VERIFIED",
+        "label": "Objet vérifié (retour)",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-06T20:20:55.647Z"
+      },
+      {
+        "id": "0cd4d19c-542b-45cc-a73b-c96e1319c280",
+        "type": "RETURN_CONFIRMED_MERCHANT",
+        "label": "Réception de l'objet constatée",
+        "actor": "Vous",
+        "actorRole": "SELF",
+        "at": "2026-10-06T20:20:55.656Z"
+      },
+      {
+        "id": "cf0b5c91-53a6-419e-9795-b6b4a68cb0d8",
+        "type": "RETURN_CONFIRMED_CUSTOMER",
+        "label": "Retour confirmé par le client",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-06T20:20:55.663Z"
+      },
+      {
+        "id": "032a05e2-dceb-4e5b-b920-b17eafc02566",
+        "type": "ASSET_RETURNED",
+        "label": "Objet retourné",
+        "actor": "Client",
+        "actorRole": "CUSTOMER",
+        "at": "2026-10-06T20:20:55.719Z"
+      }
+    ],
+    "requiresTanyIntervention": false
+  }
+}

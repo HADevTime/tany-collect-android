@@ -299,7 +299,13 @@ data class MerchantDeposit(
     val refundableAmount: MoneyAmount? = null,
     /** Merchant-safe reason of the retention (additive): drives controlled copy, generic fallback when absent / unknown. */
     val latePenaltyReasonCode: LatePenaltyReasonCode? = null,
+    /** Hand-back orchestration (additive): IMMEDIATE (no QR) | DEFERRED (client QR) | null. */
+    val handBackMode: DepositHandBackMode? = null,
 ) {
+    /** Deferred hand-back: the client's deposit QR is required (server `handBackMode`, else `refundPickup.qrRequired`). */
+    val isDeferredHandBack: Boolean
+        get() = handBackMode == DepositHandBackMode.DEFERRED || refundPickup?.qrRequired == true
+
     /** The current decision carries a late-return deduction (server value > 0). */
     val hasLatePenalty: Boolean get() = (latePenaltyAmount?.centimes ?: 0L) > 0L
 

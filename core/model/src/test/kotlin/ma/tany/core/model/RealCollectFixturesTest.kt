@@ -11,6 +11,7 @@ import ma.tany.core.model.collect.BookingEventType
 import ma.tany.core.model.collect.CollectAuthResponse
 import ma.tany.core.model.collect.CollectMe
 import ma.tany.core.model.collect.CollectRole
+import ma.tany.core.model.collect.DepositHandBackMode
 import ma.tany.core.model.collect.EarningsStatus
 import ma.tany.core.model.collect.IncidentsResponse
 import ma.tany.core.model.collect.MerchantBookingResponse
@@ -23,6 +24,7 @@ import ma.tany.core.model.collect.SettlementStatus
 import ma.tany.core.model.collect.TodayResponse
 import ma.tany.core.model.common.ApiErrorCode
 import ma.tany.core.model.common.DepositLedgerState
+import ma.tany.core.model.common.MoneyAmount
 import ma.tany.core.model.common.NotificationsPage
 import ma.tany.core.model.common.OtpRequestResponse
 import ma.tany.core.model.common.TanyJson
@@ -81,6 +83,31 @@ class RealCollectFixturesTest {
         val after = Fixtures.decode<MerchantBookingResponse>(real("deposit_refund_handed_back")).booking.deposit!!
         assertNotNull(after.merchantRefundConfirmedAt)
         assertEquals(ma.tany.core.model.collect.MerchantDepositAction.NONE, after.merchantAction)
+    }
+
+    @Test
+    fun depositHandBackModeImmediateVersusDeferred() {
+        // Late return (3 h 02) with a server retention of 45 DH: handed back at the counter, NO client QR.
+        val immediate = Fixtures.decode<MerchantBookingResponse>(real("deposit_hand_back_immediate")).booking.deposit!!
+        assertEquals(DepositHandBackMode.IMMEDIATE, immediate.handBackMode)
+        assertEquals(null, immediate.refundPickup)
+        assertFalse(immediate.isDeferredHandBack)
+        assertEquals(MerchantDepositAction.HAND_BACK, immediate.merchantAction)
+        assertEquals(MoneyAmount.ofMajor(255), immediate.refundableAmount)
+        assertEquals(MoneyAmount.ofMajor(45), immediate.latePenaltyAmount)
+        // Merchant declared « J'ai remis 255 DH »: customer confirmation pending, never a second hand-back.
+        val pending = Fixtures.decode<MerchantBookingResponse>(real("deposit_hand_back_awaiting_customer")).booking.deposit!!
+        assertEquals(DepositLedgerState.REFUND_AWAITING_CUSTOMER, pending.state)
+        assertEquals(MerchantDepositAction.NONE, pending.merchantAction)
+        assertEquals(null, pending.handBackMode)
+        assertNotNull(pending.merchantRefundConfirmedAt)
+        assertEquals(null, pending.customerRefundConfirmedAt)
+        // Customer came back later: deferred, the client's deposit QR (or 6-digit fallback) is required.
+        val deferred = Fixtures.decode<MerchantBookingResponse>(real("deposit_hand_back_deferred")).booking.deposit!!
+        assertEquals(DepositHandBackMode.DEFERRED, deferred.handBackMode)
+        assertTrue(deferred.isDeferredHandBack)
+        assertTrue(deferred.refundPickup!!.qrRequired)
+        assertEquals(MoneyAmount.ofMajor(255), deferred.refundPickup!!.amount)
     }
 
     @Test

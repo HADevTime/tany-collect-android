@@ -817,4 +817,16 @@
         <item quantity="one">%d event</item>
         <item quantity="other">%d events</item>
     </plurals>
+    <string name="hero_next">Next operation</string>
+    <string name="hero_window">Window %1$s</string>
+    <string name="hero_return_before">Return expected by this time</string>
+    <string name="hero_cta_prepare">Prepare</string>
+    <string name="hero_cta_continue">Continue</string>
+    <string name="hero_cta_open">Open</string>
+    <string name="hero_cta_view_rental">View the rental</string>
+    <string name="home_stat_a11y">%1$s: %2$d</string>
+    <string name="home_no_next_title">No upcoming operation</string>
+    <string name="home_no_next_message">The next pickups and returns will appear here.</string>
+    <string name="home_collect_empty_other">No other pickup for now.</string>
+    <string name="home_return_empty_other">No other return for now.</string>
 </resources>

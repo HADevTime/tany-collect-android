@@ -12,43 +12,58 @@ Every screen state below comes from the server:
 
 The backend still validates every gesture.
 
-## 1. Home (« Aujourd'hui »)
+## 1. Home (« Aujourd'hui ») — aligned on TANY Collect iOS
 
-Order:
-1. **Header**: date, the point's name as the large title, and the opening state chip (structured `openingState`). Two
-   quiet 48 dp round actions sit on the right: Scanner (tonal accent) and notifications (only when the module is ON).
-2. **Hero card**: the next meaningful operation, chosen by `pickHero`. Its time or window is the dominant line, above a
-   112 dp product image, the full product name, the customer / reference, the unit code, and the cash only when it is
-   relevant. The CTA is a real action only when the server phase makes the operation workable now.
-3. **Summary**: one quiet strip of the four server counters. Zeros are muted, and a late return is the only red. Tapping
-   a counter scrolls to its section. When everything is zero, the strip collapses to one line: « Rien en attente pour le
-   moment. »
-4. **Sections**:
-   - « À traiter maintenant » (late returns + TANY reviews);
-   - « À collecter aujourd'hui »;
-   - « À retourner aujourd'hui »;
-   - « En attente du client »;
-   - no-shows.
+Order, matching the iOS Today: **header → 2 × 2 stat cards → « Prochaine opération » hero → À collecter → À retourner →
+urgent / waiting groups → completed today and « Mis à jour à »**.
 
-   The hero is never repeated, and empty groups are hidden.
-5. « Terminées aujourd'hui » (folded) and « Mis à jour à ».
+1. **Header**:
+   - the TANY COLLECT brand line, with the notifications bell (only when the inbox module is ON) and the Scanner pill;
+   - the date;
+   - the point name as the dominant title (display);
+   - the structured opening state chip (« Fermé · ouvre à 09:30 »);
+   - « n terminées aujourd'hui ».
+2. **Stats**: four real cards in a 2 × 2 grid (iOS `KPITile`): À collecter (pickup icon, TANY accent), À retourner,
+   En attente client (clock), En retard (alert). Each card has a semantic icon, a large number and a label.
+   - A card with a value > 0 gets its tint and a chevron, and a tap scrolls to its group: the hero when it belongs to
+     that group, else the section header.
+   - At 0 the card stays quiet (muted, not tappable).
+   - « En retard » > 0 gets a danger outline and number, without filling the card.
+3. **Hero « Prochaine opération »**: dark chrome surface in both themes (the `chrome` token: TANY black in Light, raised
+   dark chrome in Dark).
+   - First line: eyebrow « PROCHAINE OPÉRATION » with a compact badge (COLLECTE / RETOUR, pink accent; danger when the
+     return is late).
+   - **The start time at 40 sp is the dominant value**, with the TNY reference beside it and the window
+     (« Créneau 09:30–11:30 ») below.
+   - Then the **full product name** (wraps, never truncated), multi-day period, customer · unit code, lateness, and a
+     quiet cash line (« 467 DH · à encaisser »).
+   - **Full-width pink CTA** whose label follows the server phase: Préparer · Commencer la collecte · Continuer ·
+     Commencer le retour · Rendre la caution · Voir la location · Ouvrir. A start CTA opens the booking straight on its
+     guided flow (`BookingRoute(start = true)`). The booking screen honours it only in stages where the server allows
+     an operation.
+   - No product image: as on iOS, time / type / product / customer dominate. Images stay on the list cards.
+   - No next operation ⇒ a calm card « Aucune opération à venir · Les prochaines collectes et retours apparaîtront
+     ici. » The Today endpoint returns today only, so a later-day operation cannot be shown.
+4. **Lists**: « À collecter » and « À retourner » are always listed (iOS). They are followed by « À traiter maintenant »
+   (late + TANY review), « En attente du client » and no-shows when they have rows.
+   - **Duplication decision: option B.** The hero is the next operation; the lists hold the remaining operations. An
+     empty list under the hero's own group says « Aucune autre collecte / aucun autre retour pour le moment », so the
+     hero is never seen twice.
+   - **Cards**: « 09:30 · Collecte » and the server status chip on one line, an 80 dp image, the full product name, unit
+     code, customer · TNY reference, cash only in pickup / deposit phases, and one exception line.
 
 **Hero priority** (`heroTier`) uses the server phase only:
 1. late return;
-2. operation in progress;
-3. operation open now (`pickup_ready`, `return_due`, `deposit_to_refund`);
-4. upcoming (`pickup_upcoming`, `with_customer`);
+2. under way;
+3. open now;
+4. upcoming;
 5. waiting for the customer.
 
-Within a tier, the earliest server time wins. TANY reviews and no-shows are never the hero. This orders server data;
-it never decides what the merchant may do.
+Within a tier, the earliest server time wins. TANY reviews and no-shows are never the hero.
 
-**Cards**: time first (large), then type + server status chip, an 80 dp image, the full product name (wraps, never
-« Coll… »), the unit code, customer · reference, the multi-day period, cash only in pickup / deposit phases, and one
-exception or countdown line.
-
-**Empty day**: one calm card (« Aucune opération prévue aujourd'hui ») and shortcuts. The Today endpoint only returns
-today's operations, so the next operation on another day is not shown (it would need a new endpoint).
+**Pink accent budget on Home**: the hero CTA and its type badge carry the TANY pink. The header Scanner pill is tonal
+(soft accent container), and the persistent centre Scanner action of the bar stays filled. This way the hero remains
+the strongest surface of the screen.
 
 ## 2. Booking screen: three experiences
 

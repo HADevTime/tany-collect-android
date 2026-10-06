@@ -21,12 +21,12 @@ Legend:
 | **Navigation** — tabs | Today / Scanner (centre, accent) / Activity / Account | Today / Activity / **Scanner action** (centre) / Equipment* / Account | ≈ | Scanner is an action opening a full-screen scanner, not a tab (docs/UX_REWORK.md § 5). *Equipment is a tab when the module flag is ON (iOS: inside Account) |
 | Navigation — Today badge | late + blocked | `counts.late + counts.blocked` (server counters), plural spoken label | ✅ | |
 | Navigation — point switch resets navigation | `selectPoint` + `resetNavigation` | `key(activePointId)` recreates the whole shell (back stacks, ViewModels) | ✅ | No data of the previous point survives |
-| **Today** — header | short name, opening state, "n terminées" | shortName, structured `openingState` label (never the FR prose), completed today, Scanner button, bell only when inbox ON | ✅ | |
-| Today — KPI tiles | 4 tiles, tap scrolls to section | 2×2 server counters, tap scrolls to section | ✅ | |
+| **Today** — header | wordmark, bell, pink Scanner, point name, status, "n terminées" | TANY COLLECT brand line, bell, Scanner pill (tonal), point name (display), structured opening chip, completed today | ≈ | Page-coloured header instead of the graphite band; tonal Scanner so the hero CTA keeps the pink focus |
+| Today — KPI tiles | 2 × 2 `KPITile` (icon, number, label, chevron), tap scrolls | 2 × 2 stat cards: semantic icon, large number, label, chevron when > 0; zeros quiet; late outlined danger; tap scrolls to the hero or section | ✅ | |
 | Today — sections | late, attention, to collect, to return, awaiting customer, no-show | Hero + « À traiter maintenant » (late + TANY review), to collect / to return today, awaiting customer, no-show; hero never repeated, empty groups hidden | ✅ | |
 | Today — row anatomy | time · kind, short status, product, multi-day period, ref + amount, countdown | Time first (large), status, 80 dp image, full product name, unit code, customer · ref, cash only when relevant, exception line | ✅ | |
 | Today — refresh | poll 30 s + foreground | silent refresh on resume + every 30 s, pull-to-refresh, "Mis à jour à", stale/offline notice | ✅ | |
-| Today — "next operation" hero | `NextOperation.pick` | Hero card from the server phase tier (late → in progress → open now → upcoming → awaiting) + server time | ≈ | Same mental model; ordering of server phases only, never a client business rule |
+| Today — "next operation" hero | `NextOperationCard` (graphite, eyebrow + kind badge, 40 pt time + ref, product, customer · asset, pink « Ouvrir ») | Same structure on the dark `chrome` surface in both themes, window below the time, contextual pink CTA (Préparer / Commencer la collecte / Continuer / …), placed after the stats as on iOS | ✅ | Hero chosen from server phase tiers (never a client business rule) |
 | Today — transition toasts | `detectTransitions` | — | ⛔ | Client inference; push/inbox come from the server |
 | Today — local reminders | `CollectNotifications.sync` | — | ⛔ | Notification content is never computed locally |
 | Today — offline disk cache | yes | memory only | 🕓 | |

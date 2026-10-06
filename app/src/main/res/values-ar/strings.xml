@@ -849,4 +849,16 @@
         <item quantity="many">%d حدثًا</item>
         <item quantity="other">%d حدث</item>
     </plurals>
+    <string name="hero_next">العملية القادمة</string>
+    <string name="hero_window">الفترة %1$s</string>
+    <string name="hero_return_before">الإرجاع متوقع قبل هذه الساعة</string>
+    <string name="hero_cta_prepare">تحضير</string>
+    <string name="hero_cta_continue">متابعة</string>
+    <string name="hero_cta_open">فتح</string>
+    <string name="hero_cta_view_rental">عرض الكراء</string>
+    <string name="home_stat_a11y">%1$s: %2$d</string>
+    <string name="home_no_next_title">لا توجد عملية قادمة</string>
+    <string name="home_no_next_message">ستظهر هنا عمليات الاستلام والإرجاع القادمة.</string>
+    <string name="home_collect_empty_other">لا يوجد استلام آخر حاليًا.</string>
+    <string name="home_return_empty_other">لا يوجد إرجاع آخر حاليًا.</string>
 </resources>

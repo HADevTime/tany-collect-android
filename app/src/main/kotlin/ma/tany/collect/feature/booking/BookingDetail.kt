@@ -199,6 +199,9 @@ class BookingDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     val bookingId: String = checkNotNull(savedStateHandle["bookingId"])
+
+    /** Opened from the Home hero CTA: show the guided flow first (only where [detailMode] allows it). */
+    val startFlow: Boolean = savedStateHandle.get<Boolean>("start") ?: false
     private val _state = MutableStateFlow<LoadState<MerchantBookingDetail>>(LoadState.Loading)
     val state: StateFlow<LoadState<MerchantBookingDetail>> = _state.asStateFlow()
 
@@ -426,7 +429,7 @@ fun BookingDetailScreen(
     var incidentOpen by rememberSaveable { mutableStateOf(false) }
     // null = follow the SERVER stage (guided while an operation is under way at the counter); true / false = the
     // merchant opened or left the guided flow.
-    var flowChoice by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var flowChoice by rememberSaveable { mutableStateOf<Boolean?>(if (viewModel.startFlow) true else null) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val loaded = (state as? LoadState.Loaded)?.value
     val phase = loaded?.phase

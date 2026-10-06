@@ -32,9 +32,10 @@ import ma.tany.core.designsystem.theme.TanyTheme
 
 /**
  * PRIMARY = the one main action of a screen / card (TANY black, light in dark mode) · TONAL = an available step among
- * several (soft accent container) · SECONDARY = outlined alternative · DESTRUCTIVE · TEXT.
+ * several (soft accent container) · SECONDARY = outlined alternative · DESTRUCTIVE · TEXT · ACCENT = the TANY pink
+ * call to action on a dark chrome surface (« Prochaine opération » hero, like TANY Collect iOS).
  */
-enum class TanyButtonStyle { PRIMARY, SECONDARY, TONAL, DESTRUCTIVE, TEXT }
+enum class TanyButtonStyle { PRIMARY, SECONDARY, TONAL, DESTRUCTIVE, TEXT, ACCENT }
 
 /**
  * Guards against double taps: a click is ignored while [busy] or within [windowMs] of the previous click.
@@ -89,9 +90,17 @@ fun TanyButton(
         }
     }
     when (style) {
-        TanyButtonStyle.PRIMARY, TanyButtonStyle.DESTRUCTIVE -> {
-            val container = if (style == TanyButtonStyle.PRIMARY) colors.primaryAction else colors.destructive
-            val onContainer = if (style == TanyButtonStyle.PRIMARY) colors.onPrimaryAction else colors.onDestructive
+        TanyButtonStyle.PRIMARY, TanyButtonStyle.DESTRUCTIVE, TanyButtonStyle.ACCENT -> {
+            val container = when (style) {
+                TanyButtonStyle.PRIMARY -> colors.primaryAction
+                TanyButtonStyle.ACCENT -> colors.accent
+                else -> colors.destructive
+            }
+            val onContainer = when (style) {
+                TanyButtonStyle.PRIMARY -> colors.onPrimaryAction
+                TanyButtonStyle.ACCENT -> colors.onAccent
+                else -> colors.onDestructive
+            }
             Button(
                 onClick = guarded,
                 modifier = base,

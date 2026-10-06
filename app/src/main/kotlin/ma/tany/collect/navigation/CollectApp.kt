@@ -94,7 +94,7 @@ import kotlin.reflect.KClass
 fun CollectApp(sessionState: SessionState, activePointId: String?) {
     when {
         sessionState == SessionState.Loading || activePointId == null -> TanyLoadingState()
-        sessionState is SessionState.SignedOut -> AuthFlow()
+        sessionState is SessionState.SignedOut -> AuthFlow(sessionExpired = sessionState.expired)
         activePointId.isEmpty() -> PointPickerScreen()
         // A new point = a new shell: navigation, back stacks and every screen ViewModel start over, so no data of the
         // previous point can stay on screen (same as iOS « selectPoint » + « resetNavigation »).
@@ -103,10 +103,17 @@ fun CollectApp(sessionState: SessionState, activePointId: String?) {
 }
 
 @Composable
-private fun AuthFlow() {
+private fun AuthFlow(sessionExpired: Boolean) {
     val navController = rememberNavController()
     NavHost(navController, startDestination = AuthPhoneRoute) {
-        composable<AuthPhoneRoute> { PhoneScreen(onCodeSent = { phone, devCode -> navController.navigate(AuthOtpRoute(phone, devCode)) }) }
+        composable<AuthPhoneRoute> {
+            PhoneScreen(
+                sessionExpired = sessionExpired,
+                onCodeSent = { sent ->
+                    navController.navigate(AuthOtpRoute(sent.phone, sent.devCode, sent.codeLength, sent.resendAfterSeconds))
+                },
+            )
+        }
         composable<AuthOtpRoute> { OtpScreen(onBack = { navController.popBackStack() }) }
     }
 }

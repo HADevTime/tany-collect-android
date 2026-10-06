@@ -11,6 +11,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
@@ -39,24 +40,33 @@ fun CameraQrPreview(
     modifier: Modifier = Modifier,
     torchOn: Boolean = false,
     onTorchAvailable: (Boolean) -> Unit = {},
+    active: Boolean = true,
+    onUnavailable: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnCode by rememberUpdatedState(onCode)
     val currentOnTorchAvailable by rememberUpdatedState(onTorchAvailable)
+    val currentOnUnavailable by rememberUpdatedState(onUnavailable)
+    val gate = remember { ScanGate() }
+    SideEffect { gate.setActive(active) }
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
     var camera by remember { mutableStateOf<Camera?>(null) }
 
     DisposableEffect(lifecycleOwner) {
         val analysisExecutor = Executors.newSingleThreadExecutor()
         val scanner = BarcodeScanning.getClient(BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build())
-        val debouncer = ScanDebouncer()
         val providerFuture = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
 
         providerFuture.addListener(
             {
-                val cameraProvider = providerFuture.get().also { provider = it }
+                val cameraProvider = runCatching { providerFuture.get() }.getOrNull()
+                if (cameraProvider == null) {
+                    currentOnUnavailable()
+                    return@addListener
+                }
+                provider = cameraProvider
                 val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -69,12 +79,19 @@ fun CameraQrPreview(
                     }
                     scanner.process(InputImage.fromMediaImage(image, proxy.imageInfo.rotationDegrees))
                         .addOnSuccessListener { codes ->
-                            codes.firstNotNullOfOrNull { it.rawValue }?.let { raw -> if (debouncer.accept(raw)) currentOnCode(raw) }
+                            codes.firstNotNullOfOrNull { it.rawValue }?.let { raw -> if (gate.accept(raw)) currentOnCode(raw) }
                         }
                         .addOnCompleteListener { proxy.close() }
                 }
                 cameraProvider.unbindAll()
-                val bound = cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                // No back camera / camera held by another app: the manual code takes over (never a crash).
+                val bound = runCatching {
+                    cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                }.getOrNull()
+                if (bound == null) {
+                    currentOnUnavailable()
+                    return@addListener
+                }
                 camera = bound
                 currentOnTorchAvailable(bound.cameraInfo.hasFlashUnit())
             },

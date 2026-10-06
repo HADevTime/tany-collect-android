@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed icon (Android 13+): alpha mask of the official artwork, same geometry as the foreground. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_launcher_monochrome_artwork"
+    android:inset="16.667%" />

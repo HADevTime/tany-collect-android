@@ -3,14 +3,16 @@ package ma.tany.collect
 import kotlinx.coroutines.test.runTest
 import ma.tany.collect.core.ui.LoadState
 import ma.tany.collect.core.ui.groupConsecutiveByDay
-import ma.tany.collect.feature.equipment.filterAssets
+import ma.tany.collect.feature.activity.ActivityBucket
+import ma.tany.collect.feature.activity.bucketActivity
+import ma.tany.collect.feature.today.ALWAYS_SHOWN_SECTIONS
 import ma.tany.collect.feature.today.OperationSection
+import ma.tany.collect.feature.today.referenceTime
 import ma.tany.collect.feature.today.TodayViewModel
 import ma.tany.collect.feature.today.groupBySection
 import ma.tany.collect.feature.today.ui
 import ma.tany.core.model.collect.ActivityResponse
 import ma.tany.core.model.collect.AssetDetail
-import ma.tany.core.model.collect.AssetGroup
 import ma.tany.core.model.collect.AssetsResponse
 import ma.tany.core.model.collect.CollectMe
 import ma.tany.core.model.collect.MerchantBookingDetail
@@ -38,7 +40,6 @@ class PresentationTest {
     private fun fixture(name: String) = File("../core/model/src/test/resources/fixtures/real/$name.json").readText()
 
     private val today: TodayResponse = TanyJson.decodeFromString(fixture("today"))
-    private val assets: AssetsResponse = TanyJson.decodeFromString(fixture("assets"))
 
     private class FakeToday(var result: ApiResult<TodayResponse>) : CollectRepository {
         var reads = 0
@@ -54,9 +55,15 @@ class PresentationTest {
 
         override suspend fun booking(bookingId: String, pointId: String): ApiResult<MerchantBookingDetail> = ApiResult.Failure(ApiError.Unauthorized)
 
-        override suspend fun assets(pointId: String): ApiResult<AssetsResponse> = ApiResult.Success(AssetsResponse(enabled = false))
+        override suspend fun assets(pointId: String, query: String?, filter: ma.tany.core.model.collect.AssetFilter?): ApiResult<AssetsResponse> = ApiResult.Success(AssetsResponse(enabled = false))
 
         override suspend fun asset(pointId: String, assetId: String): ApiResult<AssetDetail> = ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun assetLookup(pointId: String, code: String): ApiResult<ma.tany.core.model.collect.AssetDetail> =
+            ApiResult.Failure(ApiError.Unauthorized)
+
+        override suspend fun incidents(pointId: String): ApiResult<ma.tany.core.model.collect.IncidentsResponse> =
+            ApiResult.Failure(ApiError.Unauthorized)
     }
 
     @Test
@@ -66,14 +73,16 @@ class PresentationTest {
             assertTrue(ui.description != 0)
             assertTrue(ui.section in OperationSection.entries)
         }
-        // Customer / TANY confirmations are never listed as « to handle » by the merchant.
-        listOf(
-            MerchantPhase.PICKUP_AWAITING_CUSTOMER,
-            MerchantPhase.RETURN_AWAITING_CUSTOMER,
-            MerchantPhase.DEPOSIT_AWAITING_CUSTOMER,
-            MerchantPhase.DEPOSIT_DISPUTED,
-            MerchantPhase.BLOCKED_PENDING_REVIEW,
-        ).forEach { assertEquals(OperationSection.WAITING, it.ui().section) }
+        // Sections mirror the SERVER counters (tany-backend getTodayOperations): awaitingCustomer, blocked, late…
+        listOf(MerchantPhase.PICKUP_AWAITING_CUSTOMER, MerchantPhase.RETURN_AWAITING_CUSTOMER, MerchantPhase.DEPOSIT_AWAITING_CUSTOMER)
+            .forEach { assertEquals(OperationSection.AWAITING_CUSTOMER, it.ui().section) }
+        listOf(MerchantPhase.DEPOSIT_DISPUTED, MerchantPhase.BLOCKED_PENDING_REVIEW).forEach { assertEquals(OperationSection.ATTENTION, it.ui().section) }
+        listOf(MerchantPhase.PICKUP_UPCOMING, MerchantPhase.PICKUP_READY, MerchantPhase.PICKUP_IN_PROGRESS)
+            .forEach { assertEquals(OperationSection.TO_COLLECT, it.ui().section) }
+        listOf(MerchantPhase.RETURN_DUE, MerchantPhase.RETURN_IN_PROGRESS, MerchantPhase.DEPOSIT_TO_REFUND)
+            .forEach { assertEquals(OperationSection.TO_RETURN, it.ui().section) }
+        assertEquals(OperationSection.LATE, MerchantPhase.RETURN_LATE.ui().section)
+        assertEquals(OperationSection.NO_SHOW, MerchantPhase.NO_SHOW.ui().section)
     }
 
     @Test
@@ -84,13 +93,12 @@ class PresentationTest {
         // Nothing lost or duplicated.
         assertEquals(operations.map { it.id }.toSet(), groups.flatMap { it.second }.map { it.id }.toSet())
         assertEquals(operations.size, groups.sumOf { it.second.size })
-        // Sections follow the fixed order and each keeps the server's relative order.
+        // Sections follow the fixed iOS order; inside a section, rows are chronological on their server instant.
         assertEquals(groups.map { it.first }, groups.map { it.first }.sortedBy { it.ordinal })
-        groups.forEach { (_, ops) ->
-            val serverIndexes = ops.map { op -> operations.indexOfFirst { it.id == op.id } }
-            assertEquals(serverIndexes.sorted(), serverIndexes)
-        }
-        assertTrue(groups.none { it.second.isEmpty() })
+        groups.forEach { (_, ops) -> assertEquals(ops.sortedBy { it.referenceTime() }, ops) }
+        // Only « À collecter » / « À retourner » may be empty (they always show a reassuring line).
+        assertTrue(groups.filter { it.second.isEmpty() }.all { it.first in ALWAYS_SHOWN_SECTIONS })
+        assertTrue(groups.map { it.first }.containsAll(ALWAYS_SHOWN_SECTIONS))
     }
 
     @Test
@@ -105,13 +113,20 @@ class PresentationTest {
     }
 
     @Test
-    fun equipmentFilterUsesTheServerGroupOnly() {
-        assertEquals(assets.assets, filterAssets(assets.assets, null))
-        AssetGroup.entries.forEach { group ->
-            val filtered = filterAssets(assets.assets, group)
-            assertTrue(filtered.all { it.group == group })
-            assertEquals(assets.assets.count { it.group == group }, filtered.size)
-        }
+    fun activityBucketsFollowTheServerOrderAndNeverSayTomorrow() {
+        val activity: ma.tany.core.model.collect.ActivityResponse = TanyJson.decodeFromString(fixture("activity"))
+        val items = activity.items
+        assertTrue("real fixture has items", items.isNotEmpty())
+        val today = java.time.LocalDate.of(2026, 10, 5)
+        val groups = bucketActivity(items, today)
+        // Same rows, same (server) order.
+        assertEquals(items.map { it.id }, groups.flatMap { it.second }.map { it.id })
+        // Consecutive runs only; a pickup scheduled tomorrow is « today » (last updated today), never a « Demain » header.
+        groups.zipWithNext().forEach { (a, b) -> assertTrue(a.first != b.first) }
+        val future = items.first().copy(updatedAt = null, scheduledAt = java.time.Instant.parse("2026-10-06T09:00:00Z"))
+        assertEquals(ActivityBucket.TODAY, bucketActivity(listOf(future), today).single().first)
+        val old = items.first().copy(updatedAt = java.time.Instant.parse("2026-09-01T09:00:00Z"))
+        assertEquals(ActivityBucket.HISTORY, bucketActivity(listOf(old), today).single().first)
     }
 
     @Test

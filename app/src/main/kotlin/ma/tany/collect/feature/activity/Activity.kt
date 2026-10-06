@@ -1,20 +1,20 @@
 package ma.tany.collect.feature.activity
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -22,11 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,19 +38,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ma.tany.collect.R
 import ma.tany.collect.core.ui.LoadState
-import ma.tany.collect.core.ui.dayLabel
-import ma.tany.collect.core.ui.groupConsecutiveByDay
 import ma.tany.collect.core.ui.messageRes
 import ma.tany.collect.core.ui.toLoadState
-import ma.tany.collect.feature.today.icon
-import ma.tany.collect.feature.today.label
-import ma.tany.collect.feature.today.ui
+import ma.tany.collect.feature.today.OperationListRow
 import ma.tany.core.designsystem.R as DsR
-import ma.tany.core.designsystem.component.LocalTanyFormatters
-import ma.tany.core.designsystem.component.ProductImageSurface
+import ma.tany.core.designsystem.component.BusinessDateTimeText
 import ma.tany.core.designsystem.component.TanyCard
 import ma.tany.core.designsystem.component.TanyChipSize
-import ma.tany.core.designsystem.component.TanyCodePill
 import ma.tany.core.designsystem.component.TanyDivider
 import ma.tany.core.designsystem.component.TanyEmptyState
 import ma.tany.core.designsystem.component.TanyErrorState
@@ -58,17 +52,24 @@ import ma.tany.core.designsystem.component.TanyLargeHeader
 import ma.tany.core.designsystem.component.TanyListSkeleton
 import ma.tany.core.designsystem.component.TanySearchField
 import ma.tany.core.designsystem.component.TanySectionHeader
+import ma.tany.core.designsystem.component.TanySegment
+import ma.tany.core.designsystem.component.TanySegmentedControl
 import ma.tany.core.designsystem.component.TanyStatusChip
-import ma.tany.core.designsystem.component.TanyToneIcon
+import ma.tany.core.designsystem.component.TanyTone
 import ma.tany.core.designsystem.format.ltrIsolated
 import ma.tany.core.designsystem.theme.TanyTheme
 import ma.tany.core.model.collect.ActivityResponse
+import ma.tany.core.model.collect.IncidentItem
+import ma.tany.core.model.collect.IncidentsResponse
 import ma.tany.core.model.collect.Operation
-import ma.tany.core.model.collect.OperationKind
 import ma.tany.core.model.common.BusinessTime
+import ma.tany.core.model.common.IncidentStatus
+import ma.tany.core.model.common.IncidentType
 import ma.tany.core.network.ApiEndpoint
+import ma.tany.core.network.ApiResult
 import ma.tany.core.network.CollectRepository
 import java.time.Instant
+import java.time.LocalDate
 import javax.inject.Inject
 
 /** History / search of the active point (server-side search: reference, asset code, name, phone ≥ 3 digits). */
@@ -79,74 +80,160 @@ class ActivityViewModel @Inject constructor(
 ) : ViewModel() {
     private val _state = MutableStateFlow<LoadState<ActivityResponse>>(LoadState.Loading)
     val state: StateFlow<LoadState<ActivityResponse>> = _state.asStateFlow()
+
+    private val _searching = MutableStateFlow(false)
+
+    /** A search / refresh is in flight while a list is shown (no skeleton flash on each keystroke). */
+    val searching: StateFlow<Boolean> = _searching.asStateFlow()
+
+    private val _incidents = MutableStateFlow<LoadState<IncidentsResponse>>(LoadState.Loading)
+    val incidents: StateFlow<LoadState<IncidentsResponse>> = _incidents.asStateFlow()
+
     private var search: Job? = null
 
     fun load(pointId: String, query: String, debounceMs: Long = 0) {
         search?.cancel()
         search = viewModelScope.launch {
             if (debounceMs > 0) delay(debounceMs)
-            _state.value = LoadState.Loading
-            _state.value = repository.activity(pointId, query.trim().takeIf { it.isNotEmpty() }).toLoadState()
+            if (_state.value is LoadState.Loaded) _searching.value = true else _state.value = LoadState.Loading
+            val result = repository.activity(pointId, query.trim().takeIf { it.isNotEmpty() })
+            // A failed refresh keeps the list on screen; only a first load shows the error page.
+            if (result is ApiResult.Success || _state.value !is LoadState.Loaded) _state.value = result.toLoadState()
+            _searching.value = false
+        }
+    }
+
+    fun loadIncidents(pointId: String) {
+        if (_incidents.value !is LoadState.Loaded) _incidents.value = LoadState.Loading
+        viewModelScope.launch {
+            val result = repository.incidents(pointId)
+            if (result is ApiResult.Success || _incidents.value !is LoadState.Loaded) _incidents.value = result.toLoadState()
         }
     }
 }
 
-/** Day an operation belongs to in the history (its scheduled moment, Africa/Casablanca). */
-private fun Operation.historyDay() = BusinessTime.businessDate(scheduledAt)
+/** History bucket of a row (iOS: Aujourd'hui · Hier · Historique), by its last server update. */
+enum class ActivityBucket { TODAY, YESTERDAY, HISTORY }
 
+/**
+ * Splits the SERVER-ordered history (most recently updated first) into consecutive buckets by the business day of
+ * `updatedAt` (fallback `scheduledAt`). Order is never changed. A future pickup window never yields a « Demain » header.
+ */
+fun bucketActivity(items: List<Operation>, today: LocalDate): List<Pair<ActivityBucket, List<Operation>>> {
+    val groups = mutableListOf<Pair<ActivityBucket, MutableList<Operation>>>()
+    items.forEach { op ->
+        val day = BusinessTime.businessDate(op.updatedAt ?: op.scheduledAt)
+        val bucket = when {
+            day >= today -> ActivityBucket.TODAY
+            day == today.minusDays(1) -> ActivityBucket.YESTERDAY
+            else -> ActivityBucket.HISTORY
+        }
+        val last = groups.lastOrNull()
+        if (last != null && last.first == bucket) last.second += op else groups += bucket to mutableListOf(op)
+    }
+    return groups.map { (bucket, ops) -> bucket to ops.toList() }
+}
+
+private enum class ActivityTab { OPERATIONS, INCIDENTS }
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActivityScreen(pointId: String, onOpenBooking: (String) -> Unit, viewModel: ActivityViewModel = hiltViewModel()) {
     var query by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(pointId) { viewModel.load(pointId, query) }
+    var tab by rememberSaveable { mutableStateOf(ActivityTab.OPERATIONS) }
+    // Re-read each time the tab comes back (after a booking…): server state only.
+    val currentQuery by rememberUpdatedState(query)
+    LifecycleResumeEffect(pointId, tab) {
+        if (tab == ActivityTab.OPERATIONS) viewModel.load(pointId, currentQuery) else viewModel.loadIncidents(pointId)
+        onPauseOrDispose { }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val searching by viewModel.searching.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        val completed = (state as? LoadState.Loaded)?.value?.completedToday
-        TanyLargeHeader(
-            title = stringResource(R.string.activity_title),
-            subtitle = completed?.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.activity_completed_today, it, it) },
+        TanyLargeHeader(title = stringResource(R.string.activity_title))
+        TanySegmentedControl(
+            options = listOf(
+                TanySegment(ActivityTab.OPERATIONS, stringResource(R.string.activity_tab_operations)),
+                TanySegment(ActivityTab.INCIDENTS, stringResource(R.string.activity_tab_incidents)),
+            ),
+            selected = tab,
+            onSelect = { tab = it },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         )
+        if (tab == ActivityTab.INCIDENTS) {
+            IncidentsList(viewModel, pointId, onOpenBooking)
+        } else {
+            OperationsTab(viewModel, pointId, query, onQuery = { query = it }, state = state, searching = searching, onOpenBooking = onOpenBooking)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OperationsTab(
+    viewModel: ActivityViewModel,
+    pointId: String,
+    query: String,
+    onQuery: (String) -> Unit,
+    state: LoadState<ActivityResponse>,
+    searching: Boolean,
+    onOpenBooking: (String) -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
         TanySearchField(
             value = query,
             onValueChange = {
-                query = it.take(60)
-                viewModel.load(pointId, query, debounceMs = 350)
+                val next = it.take(60)
+                onQuery(next)
+                viewModel.load(pointId, next, debounceMs = 350)
             },
             placeholder = stringResource(R.string.activity_search),
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
         when (val s = state) {
-            LoadState.Loading -> TanyListSkeleton(rows = 5, withMedia = false)
+            LoadState.Loading -> TanyListSkeleton(rows = 5, withMedia = true)
             is LoadState.Failed -> TanyErrorState(stringResource(s.error.messageRes()), onRetry = { viewModel.load(pointId, query) })
-            is LoadState.Loaded -> if (s.value.items.isEmpty()) {
-                if (query.isBlank()) {
-                    TanyEmptyState(
-                        title = stringResource(R.string.activity_empty_title),
-                        message = stringResource(R.string.activity_empty_message),
-                        icon = DsR.drawable.ic_tany_list,
-                    )
+            is LoadState.Loaded -> PullToRefreshBox(
+                isRefreshing = searching,
+                onRefresh = { viewModel.load(pointId, query) },
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (s.value.items.isEmpty()) {
+                    if (query.isBlank()) {
+                        TanyEmptyState(
+                            title = stringResource(R.string.activity_empty_title),
+                            message = stringResource(R.string.activity_empty_message),
+                            icon = DsR.drawable.ic_tany_list,
+                        )
+                    } else {
+                        TanyEmptyState(
+                            title = stringResource(R.string.activity_no_result_title),
+                            message = stringResource(R.string.activity_no_result_message),
+                            icon = DsR.drawable.ic_tany_search,
+                            secondaryLabel = stringResource(R.string.activity_clear_search),
+                            onSecondary = {
+                                onQuery("")
+                                viewModel.load(pointId, "")
+                            },
+                        )
+                    }
                 } else {
-                    TanyEmptyState(
-                        title = stringResource(R.string.activity_no_result_title),
-                        message = stringResource(R.string.activity_no_result_message),
-                        icon = DsR.drawable.ic_tany_search,
-                        secondaryLabel = stringResource(R.string.activity_clear_search),
-                        onSecondary = {
-                            query = ""
-                            viewModel.load(pointId, "")
-                        },
+                    ActivityList(
+                        response = s.value,
+                        endpoint = viewModel.endpoint,
+                        onOpenBooking = onOpenBooking,
+                        resultCount = s.value.items.size.takeIf { query.isNotBlank() },
                     )
                 }
-            } else {
-                ActivityList(s.value.items, viewModel.endpoint, onOpenBooking, resultCount = s.value.items.size.takeIf { query.isNotBlank() })
             }
         }
     }
 }
 
 @Composable
-private fun ActivityList(items: List<Operation>, endpoint: ApiEndpoint, onOpenBooking: (String) -> Unit, resultCount: Int?) {
+private fun ActivityList(response: ActivityResponse, endpoint: ApiEndpoint, onOpenBooking: (String) -> Unit, resultCount: Int?) {
     val today = remember { BusinessTime.businessDate(Instant.now()) }
-    val groups = remember(items) { groupConsecutiveByDay(items) { it.historyDay() } }
+    val groups = remember(response.items) { bucketActivity(response.items, today) }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
@@ -161,17 +248,34 @@ private fun ActivityList(items: List<Operation>, endpoint: ApiEndpoint, onOpenBo
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
             }
+        } else if (response.completedToday > 0) {
+            item(key = "summary") {
+                TanyStatusChip(
+                    pluralStringResource(R.plurals.activity_completed_today, response.completedToday, response.completedToday),
+                    TanyTone.SUCCESS,
+                )
+            }
         }
-        groups.forEachIndexed { index, (day, operations) ->
-            item(key = "day-$index") {
-                TanySectionHeader(dayLabel(day, today), trailing = operations.size.toString(), modifier = Modifier.padding(top = 6.dp))
+        groups.forEachIndexed { index, (bucket, operations) ->
+            item(key = "bucket-$index") {
+                TanySectionHeader(
+                    stringResource(
+                        when (bucket) {
+                            ActivityBucket.TODAY -> R.string.day_today
+                            ActivityBucket.YESTERDAY -> R.string.day_yesterday
+                            ActivityBucket.HISTORY -> R.string.activity_history
+                        },
+                    ),
+                    trailing = operations.size.toString(),
+                    modifier = Modifier.padding(top = 6.dp),
+                )
             }
             item(key = "group-$index") {
                 TanyCard(contentPadding = 0.dp) {
                     Column {
                         operations.forEachIndexed { i, op ->
                             if (i > 0) TanyDivider(inset = 16.dp)
-                            ActivityRow(op, endpoint, onClick = { onOpenBooking(op.id) })
+                            OperationListRow(op, endpoint, onClick = { onOpenBooking(op.id) }, showDay = bucket != ActivityBucket.TODAY)
                         }
                     }
                 }
@@ -180,57 +284,78 @@ private fun ActivityList(items: List<Operation>, endpoint: ApiEndpoint, onOpenBo
     }
 }
 
-/** Compact history row: kind tile, product, server phase, customer short name, reference and time. */
+/** Activité › Incidents (`GET points/{id}/incidents`): server status enum, description verbatim, opens the booking. */
 @Composable
-private fun ActivityRow(operation: Operation, endpoint: ApiEndpoint, onClick: () -> Unit) {
-    val phase = operation.phase.ui()
-    val formatters = LocalTanyFormatters.current
+private fun IncidentsList(viewModel: ActivityViewModel, pointId: String, onOpenBooking: (String) -> Unit) {
+    val state by viewModel.incidents.collectAsStateWithLifecycle()
+    when (val s = state) {
+        LoadState.Loading -> TanyListSkeleton(rows = 4, withMedia = false)
+        is LoadState.Failed -> TanyErrorState(stringResource(s.error.messageRes()), onRetry = { viewModel.loadIncidents(pointId) })
+        is LoadState.Loaded -> if (s.value.incidents.isEmpty()) {
+            TanyEmptyState(
+                title = stringResource(R.string.activity_incidents_empty_title),
+                message = stringResource(R.string.activity_incidents_empty_message),
+                icon = DsR.drawable.ic_tany_shield,
+                tone = TanyTone.SUCCESS,
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item(key = "header") {
+                    TanySectionHeader(stringResource(R.string.activity_tab_incidents), trailing = s.value.incidents.size.toString())
+                }
+                items(s.value.incidents, key = { it.id }) { incident ->
+                    IncidentRow(incident, onOpen = incident.bookingId?.let { id -> { onOpenBooking(id) } })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IncidentRow(incident: IncidentItem, onOpen: (() -> Unit)?) {
     val colors = TanyTheme.colors
-    val time = if (operation.kind == OperationKind.RETURN) {
-        formatters.businessTime(operation.returnDeadline)
-    } else {
-        formatters.businessTimeRange(operation.pickupWindowStart, operation.pickupWindowEnd)
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            TanyToneIcon(operation.kind.icon(), phase.tone, size = 36.dp)
+    TanyCard(onClick = onOpen, accent = TanyTone.WARNING.takeIf { incident.status == IncidentStatus.OPEN }) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(incident.type.label()), style = TanyTheme.typography.headline, modifier = Modifier.weight(1f))
+            TanyStatusChip(stringResource(incident.status.label()), incident.status.tone(), size = TanyChipSize.SMALL)
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    stringResource(operation.kind.label()),
-                    style = TanyTheme.typography.caption,
-                    color = colors.textMuted,
-                )
-                Text("·", style = TanyTheme.typography.caption, color = colors.textSubtle)
-                Text(ltrIsolated(time), style = TanyTheme.typography.caption, color = colors.textMuted, maxLines = 1)
-            }
-            Text(operation.product.name, style = TanyTheme.typography.bodyStrong, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    operation.customer.shortName,
-                    style = TanyTheme.typography.caption,
-                    color = colors.textMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                TanyCodePill(ltrIsolated(operation.reference))
-            }
-            TanyStatusChip(stringResource(phase.label), phase.tone, size = TanyChipSize.SMALL)
+        val context = listOfNotNull(incident.reference?.let(::ltrIsolated), incident.assetCode?.let(::ltrIsolated), incident.productName)
+        if (context.isNotEmpty()) {
+            Text(context.joinToString(" · "), style = TanyTheme.typography.caption, color = colors.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        ProductImageSurface(
-            url = endpoint.resolveMedia(operation.product.displayImage),
-            contentDescription = null,
-            modifier = Modifier.width(52.dp),
-            padding = 4.dp,
-        )
+        // User-generated text, verbatim.
+        incident.description?.let { Text(it, style = TanyTheme.typography.label, maxLines = 3, overflow = TextOverflow.Ellipsis) }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            BusinessDateTimeText(incident.createdAt, style = TanyTheme.typography.caption, color = colors.textSubtle)
+            if (incident.createdByMe) {
+                Text(stringResource(R.string.activity_incident_by_you), style = TanyTheme.typography.caption, color = colors.textSubtle)
+            }
+        }
     }
+}
+
+private fun IncidentType.label(): Int = when (this) {
+    IncidentType.DAMAGED -> R.string.return_incident_damaged
+    IncidentType.MISSING_ACCESSORY -> R.string.return_incident_missing
+    IncidentType.VERY_DIRTY -> R.string.return_incident_dirty
+    IncidentType.DEPOSIT_DISPUTE -> R.string.incident_type_deposit_dispute
+    IncidentType.HANDOVER_DISPUTED -> R.string.incident_type_handover_disputed
+    IncidentType.ASSET_LOCATION_UNRESOLVED -> R.string.incident_type_location_unresolved
+    else -> R.string.return_incident_other
+}
+
+private fun IncidentStatus.label(): Int = when (this) {
+    IncidentStatus.RESOLVED -> R.string.incident_status_resolved
+    IncidentStatus.UNDER_REVIEW -> R.string.incident_status_review
+    else -> R.string.incident_status_open
+}
+
+private fun IncidentStatus.tone(): TanyTone = when (this) {
+    IncidentStatus.RESOLVED -> TanyTone.SUCCESS
+    IncidentStatus.UNDER_REVIEW -> TanyTone.INFO
+    else -> TanyTone.WARNING
 }

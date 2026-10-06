@@ -1,6 +1,18 @@
 package ma.tany.collect.feature.revenue
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import ma.tany.core.designsystem.component.TanyIllustration
+import ma.tany.core.model.collect.RevenueAmountKind
+import ma.tany.core.model.collect.SettlementOverview
+import ma.tany.core.network.ApiResult
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -88,13 +100,32 @@ class RevenueViewModel @Inject constructor(private val repository: CollectBusine
     private val _state = MutableStateFlow<LoadState<RevenueOverview>>(LoadState.Loading)
     val state: StateFlow<LoadState<RevenueOverview>> = _state.asStateFlow()
 
-    /** [period] = a key given by the server (`previousKey` / `nextKey`), null = current month. */
+    private val _loadingPeriod = MutableStateFlow(false)
+
+    /** A period / refresh is loading while the previous figures stay on screen (no skeleton flash). */
+    val loadingPeriod: StateFlow<Boolean> = _loadingPeriod.asStateFlow()
+
+    private val _settlement = MutableStateFlow<SettlementOverview?>(null)
+
+    /** Settlement summary of the same point (Revenus › « Règlement TANY » card); null when unavailable. */
+    val settlement: StateFlow<SettlementOverview?> = _settlement.asStateFlow()
+
+    /** [period] = a key given by the server (`previousKey` / `nextKey` / `periods[]`), null = current month. */
     fun load(pointId: String, period: String? = null) {
-        _state.value = LoadState.Loading
-        viewModelScope.launch { _state.value = repository.revenue(pointId, period).toLoadState() }
+        if (_state.value is LoadState.Loaded) _loadingPeriod.value = true else _state.value = LoadState.Loading
+        viewModelScope.launch {
+            val result = repository.revenue(pointId, period)
+            if (result is ApiResult.Success || _state.value !is LoadState.Loaded) _state.value = result.toLoadState()
+            _loadingPeriod.value = false
+        }
+        viewModelScope.launch {
+            val result = repository.settlement(pointId)
+            _settlement.value = (result as? ApiResult.Success)?.value?.takeIf { it.enabled && it.collectPointId.let { id -> id == null || id == pointId } }
+        }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RevenueScreen(
     pointId: String,
@@ -105,22 +136,48 @@ fun RevenueScreen(
 ) {
     LaunchedEffect(pointId) { viewModel.load(pointId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val loadingPeriod by viewModel.loadingPeriod.collectAsStateWithLifecycle()
+    val settlement by viewModel.settlement.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
         TanyTopBar(title = stringResource(R.string.revenue_title), onBack = onBack)
         when (val s = state) {
             LoadState.Loading -> TanyDetailSkeleton()
             is LoadState.Failed -> TanyErrorState(stringResource(s.error.messageRes()), onRetry = { viewModel.load(pointId) })
             is LoadState.Loaded -> if (!s.value.enabled) {
-                TanyEmptyState(title = stringResource(R.string.revenue_disabled), icon = DsR.drawable.ic_tany_wallet)
+                TanyEmptyState(
+                    title = stringResource(R.string.revenue_disabled_title),
+                    message = stringResource(R.string.revenue_disabled_message),
+                    icon = DsR.drawable.ic_tany_wallet,
+                )
             } else {
-                Content(s.value, onPeriod = { viewModel.load(pointId, it) }, onOpenBooking = onOpenBooking, onOpenSettlement = onOpenSettlement)
+                PullToRefreshBox(
+                    isRefreshing = loadingPeriod,
+                    onRefresh = { viewModel.load(pointId, s.value.period?.key) },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    Content(
+                        s.value,
+                        settlement = settlement,
+                        loadingPeriod = loadingPeriod,
+                        onPeriod = { viewModel.load(pointId, it) },
+                        onOpenBooking = onOpenBooking,
+                        onOpenSettlement = onOpenSettlement,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun Content(revenue: RevenueOverview, onPeriod: (String) -> Unit, onOpenBooking: (String) -> Unit, onOpenSettlement: () -> Unit) {
+private fun Content(
+    revenue: RevenueOverview,
+    settlement: SettlementOverview?,
+    loadingPeriod: Boolean,
+    onPeriod: (String) -> Unit,
+    onOpenBooking: (String) -> Unit,
+    onOpenSettlement: () -> Unit,
+) {
     val colors = TanyTheme.colors
     Column(
         modifier = Modifier
@@ -130,29 +187,64 @@ private fun Content(revenue: RevenueOverview, onPeriod: (String) -> Unit, onOpen
             .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        revenue.period?.let { period -> PeriodSwitcher(period.key, period.previousKey, period.nextKey, onPeriod) }
-        revenue.earnings?.let { earnings ->
+        val period = revenue.period
+        period?.let { PeriodSwitcher(it.key, it.previousKey, it.nextKey, revenue.periods.map { ref -> ref.key }, loadingPeriod, onPeriod) }
+        val current = period?.isCurrent != false
+        val earnings = revenue.earnings
+        // An empty period (no rental, no amount, no activity) gets a reassuring card instead of a « 0 DH » hero.
+        val emptyPeriod = earnings != null && earnings.amount.isZero && (revenue.performance?.rentals ?: 0) == 0 && revenue.activity.isEmpty()
+        if (earnings != null && !emptyPeriod) {
             // ESTIMATED earnings, never « paid / settled / balance ».
             TanyCard(contentPadding = 20.dp) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.revenue_earnings), style = TanyTheme.typography.label, color = colors.textMuted, modifier = Modifier.weight(1f))
+                    Text(
+                        if (current || period == null) {
+                            stringResource(R.string.revenue_hero_current)
+                        } else {
+                            stringResource(R.string.revenue_hero_period, monthLabel(period.key))
+                        },
+                        style = TanyTheme.typography.label,
+                        color = colors.textMuted,
+                        modifier = Modifier.weight(1f),
+                    )
                     TanyStatusChip(stringResource(R.string.revenue_estimated), TanyTone.INFO, size = TanyChipSize.SMALL)
                 }
                 MoneyText(earnings.amount, style = TanyTheme.typography.amountHero)
+                // Only the non-zero parts of the server breakdown.
+                val formatters = LocalTanyFormatters.current
+                val parts = listOfNotNull(
+                    earnings.commissionAmount.takeIf { !it.isZero }?.let { stringResource(R.string.revenue_part_commission, formatters.money(it)) },
+                    earnings.bonusAmount.takeIf { !it.isZero }?.let { stringResource(R.string.revenue_part_bonus, formatters.money(it)) },
+                    earnings.adjustmentAmount.takeIf { !it.isZero }?.let { stringResource(R.string.revenue_part_adjustment, formatters.money(it)) },
+                )
+                if (parts.isNotEmpty()) Text(parts.joinToString(" · "), style = TanyTheme.typography.label, color = colors.textMuted)
+                Text(
+                    stringResource(if (earnings.hasAgreement) R.string.revenue_estimate_agreement else R.string.revenue_no_agreement_short),
+                    style = TanyTheme.typography.caption,
+                    color = if (earnings.hasAgreement) colors.textSubtle else colors.warning.content,
+                )
                 TanyDivider()
-                TanyInfoRow(stringResource(R.string.revenue_commission)) { MoneyText(earnings.commissionAmount) }
-                TanyInfoRow(stringResource(R.string.revenue_bonus)) { MoneyText(earnings.bonusAmount) }
-                if (!earnings.adjustmentAmount.isZero) TanyInfoRow(stringResource(R.string.revenue_adjustments)) { MoneyText(earnings.adjustmentAmount) }
                 TanyInfoRow(stringResource(R.string.revenue_previous)) { MoneyText(earnings.previousAmount, color = colors.textMuted) }
-                if (!earnings.hasAgreement) {
-                    TanyNotice(message = stringResource(R.string.revenue_no_agreement), tone = TanyTone.NEUTRAL)
+            }
+        } else if (emptyPeriod) {
+            TanyCard(contentPadding = 20.dp) {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TanyIllustration(DsR.drawable.ic_tany_wallet, size = 56.dp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            stringResource(if (current) R.string.revenue_empty_current else R.string.revenue_empty_period),
+                            style = TanyTheme.typography.headline,
+                        )
+                        Text(stringResource(R.string.revenue_empty_message), style = TanyTheme.typography.label, color = colors.textMuted)
+                    }
                 }
             }
         }
+        settlement?.let { SettlementSummaryCard(it, onOpenSettlement) }
         revenue.performance?.let { p ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TanyMetricTile(p.rentals.toString(), stringResource(R.string.revenue_rentals), Modifier.weight(1f))
-                TanyMetricTile(LocalTanyFormatters.current.money(p.rentalRevenue), stringResource(R.string.revenue_rental_revenue), Modifier.weight(1f))
+                TanyMetricTile(LocalTanyFormatters.current.money(p.rentalRevenue), stringResource(R.string.revenue_rental_volume), Modifier.weight(1f))
             }
         }
         if (revenue.actions.isNotEmpty()) {
@@ -182,6 +274,17 @@ private fun Content(revenue: RevenueOverview, onPeriod: (String) -> Unit, onOpen
                 TanyInfoRow(stringResource(R.string.revenue_bonus_unlocked, bonus.unlockedCount), icon = DsR.drawable.ic_tany_star, emphasized = true) {
                     MoneyText(bonus.unlockedAmount)
                 }
+                // Next tier exactly as the server designates it (never picked locally).
+                bonus.next?.takeIf { !it.achieved }?.let { next ->
+                    TanyNotice(
+                        message = stringResource(
+                            R.string.revenue_bonus_next,
+                            next.remaining?.let { metricTarget(next.metric, it) } ?: metricTarget(next.metric, next.threshold),
+                            LocalTanyFormatters.current.money(next.reward),
+                        ),
+                        tone = TanyTone.ACTION,
+                    )
+                }
                 bonus.tiers.forEach {
                     TanyDivider()
                     BonusRow(it)
@@ -202,25 +305,34 @@ private fun Content(revenue: RevenueOverview, onPeriod: (String) -> Unit, onOpen
                     Text(stringResource(R.string.revenue_deposits_note), style = TanyTheme.typography.caption, color = colors.textMuted)
                 }
                 TanyInfoRow(stringResource(R.string.revenue_deposits_held, d.count)) { MoneyText(d.amount) }
-                TanyInfoRow(stringResource(R.string.revenue_deposits_to_hand_back, d.toHandBack.count)) { MoneyText(d.toHandBack.amount) }
-                TanyInfoRow(stringResource(R.string.revenue_deposits_awaiting, d.awaitingCustomer.count)) { MoneyText(d.awaitingCustomer.amount) }
-                TanyInfoRow(stringResource(R.string.revenue_deposits_review, d.underReview.count)) { MoneyText(d.underReview.amount) }
+                // Empty server buckets are not listed.
+                if (d.toHandBack.count > 0) {
+                    TanyInfoRow(stringResource(R.string.revenue_deposits_to_hand_back, d.toHandBack.count)) { MoneyText(d.toHandBack.amount) }
+                }
+                if (d.awaitingCustomer.count > 0) {
+                    TanyInfoRow(stringResource(R.string.revenue_deposits_awaiting, d.awaitingCustomer.count)) { MoneyText(d.awaitingCustomer.amount) }
+                }
+                if (d.underReview.count > 0) {
+                    TanyInfoRow(stringResource(R.string.revenue_deposits_review, d.underReview.count)) { MoneyText(d.underReview.amount) }
+                }
             }
         }
-        TanyCard(contentPadding = 0.dp) {
-            TanyRow(
-                title = stringResource(R.string.settlement_title),
-                subtitle = stringResource(R.string.account_settlement_hint),
-                leadingIcon = DsR.drawable.ic_tany_receipt,
-                leadingTone = TanyTone.INFO,
-                onClick = onOpenSettlement,
-            )
+        if (settlement == null) {
+            TanyCard(contentPadding = 0.dp) {
+                TanyRow(
+                    title = stringResource(R.string.settlement_title),
+                    subtitle = stringResource(R.string.account_settlement_hint),
+                    leadingIcon = DsR.drawable.ic_tany_receipt,
+                    leadingTone = TanyTone.INFO,
+                    onClick = onOpenSettlement,
+                )
+            }
         }
         if (revenue.activity.isNotEmpty()) {
             TanySectionHeader(stringResource(R.string.revenue_activity), modifier = Modifier.padding(top = 8.dp))
             TanyCard(contentPadding = 0.dp) {
                 Column {
-                    revenue.activity.forEachIndexed { i, item ->
+                    revenue.activity.take(REVENUE_ACTIVITY_ROWS).forEachIndexed { i, item ->
                         if (i > 0) TanyDivider(inset = 66.dp)
                         ActivityRow(item, onOpenBooking)
                     }
@@ -238,10 +350,21 @@ private fun Content(revenue: RevenueOverview, onPeriod: (String) -> Unit, onOpen
     }
 }
 
-/** Month navigation between the SERVER's period keys (previous / next given by the server). */
+/**
+ * Month navigation between the SERVER's period keys (previous / next / `periods[]` given by the server); the month
+ * title opens a menu of every period the server lists.
+ */
 @Composable
-private fun PeriodSwitcher(key: String, previous: String?, next: String?, onPeriod: (String) -> Unit) {
+private fun PeriodSwitcher(
+    key: String,
+    previous: String?,
+    next: String?,
+    periods: List<String>,
+    loading: Boolean,
+    onPeriod: (String) -> Unit,
+) {
     val colors = TanyTheme.colors
+    var menu by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -251,27 +374,97 @@ private fun PeriodSwitcher(key: String, previous: String?, next: String?, onPeri
             .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = { previous?.let(onPeriod) }, enabled = previous != null) {
+        IconButton(onClick = { previous?.let(onPeriod) }, enabled = previous != null && !loading) {
             androidx.compose.material3.Icon(
                 painterResource(DsR.drawable.ic_tany_chevron_start),
                 contentDescription = stringResource(R.string.revenue_previous_period),
                 tint = if (previous != null) colors.textPrimary else colors.border,
             )
         }
-        Text(
-            monthLabel(key),
-            style = TanyTheme.typography.headline,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .weight(1f)
-                .semantics { heading() },
-        )
-        IconButton(onClick = { next?.let(onPeriod) }, enabled = next != null) {
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            val choose = stringResource(R.string.revenue_choose_period)
+            Text(
+                monthLabel(key),
+                style = TanyTheme.typography.headline,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(TanyTheme.radii.medium)
+                    .then(
+                        if (periods.size > 1) Modifier.clickable(role = Role.Button, onClickLabel = choose) { menu = true } else Modifier,
+                    )
+                    .padding(vertical = 12.dp)
+                    .semantics { heading() },
+            )
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                periods.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                monthLabel(option),
+                                style = if (option == key) TanyTheme.typography.bodyStrong else TanyTheme.typography.body,
+                            )
+                        },
+                        trailingIcon = if (option == key) {
+                            { androidx.compose.material3.Icon(painterResource(DsR.drawable.ic_tany_check), contentDescription = null) }
+                        } else {
+                            null
+                        },
+                        onClick = {
+                            menu = false
+                            if (option != key) onPeriod(option)
+                        },
+                    )
+                }
+            }
+        }
+        IconButton(onClick = { next?.let(onPeriod) }, enabled = next != null && !loading) {
             androidx.compose.material3.Icon(
                 painterResource(DsR.drawable.ic_tany_chevron),
                 contentDescription = stringResource(R.string.revenue_next_period),
                 tint = if (next != null) colors.textPrimary else colors.border,
             )
+        }
+    }
+}
+
+/** At most this many recent rows (the server's order), like iOS. */
+internal const val REVENUE_ACTIVITY_ROWS = 8
+
+/** Sign shown before an activity amount: earnings are +, deposits stay neutral (never revenue). */
+internal fun RevenueActivity.signPrefix(): String = when (amountKind) {
+    RevenueAmountKind.EARNING -> if (amount.centimes < 0) "\u2212 " else "+ "
+    else -> ""
+}
+
+/** Settlement summary of the point, from the server's status and amounts (opens the settlement screen). */
+@Composable
+private fun SettlementSummaryCard(settlement: SettlementOverview, onOpen: () -> Unit) {
+    val colors = TanyTheme.colors
+    val summary = settlement.summary
+    TanyCard(onClick = onOpen, onClickLabel = stringResource(R.string.revenue_settlement_open)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TanyToneIcon(DsR.drawable.ic_tany_receipt, summary?.status?.tone() ?: TanyTone.INFO, size = 40.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(stringResource(R.string.settlement_title), style = TanyTheme.typography.bodyStrong)
+                Text(stringResource(R.string.revenue_settlement_separate), style = TanyTheme.typography.caption, color = colors.textMuted)
+            }
+            androidx.compose.material3.Icon(
+                painterResource(DsR.drawable.ic_tany_chevron),
+                contentDescription = null,
+                tint = colors.textSubtle,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        summary?.let {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TanyStatusChip(stringResource(it.status.label()), it.status.tone(), size = TanyChipSize.SMALL)
+                Spacer(Modifier.weight(1f))
+                if (!it.amountDue.isZero) {
+                    Text(stringResource(R.string.revenue_settlement_due), style = TanyTheme.typography.caption, color = colors.textMuted)
+                    MoneyText(it.amountDue)
+                }
+            }
         }
     }
 }
@@ -342,7 +535,11 @@ private fun ActivityRow(item: RevenueActivity, onOpenBooking: (String) -> Unit) 
             if (context.isNotEmpty()) Text(context, style = TanyTheme.typography.caption, color = colors.textMuted, maxLines = 2)
             BusinessDateTimeText(item.at, style = TanyTheme.typography.caption, color = colors.textSubtle)
         }
-        MoneyText(item.amount)
+        Text(
+            item.signPrefix() + LocalTanyFormatters.current.money(item.amount).let(::ltrIsolated),
+            style = TanyTheme.typography.amount,
+            color = if (item.amountKind == RevenueAmountKind.EARNING) colors.textPrimary else colors.textMuted,
+        )
     }
 }
 

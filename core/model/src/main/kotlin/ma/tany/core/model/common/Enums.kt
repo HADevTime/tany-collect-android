@@ -159,6 +159,12 @@ enum class IncidentType(override val wire: String) : WireEnum {
     BOOKING_PROBLEM("BOOKING_PROBLEM"),
     OTHER("OTHER"),
     DEPOSIT_DISPUTE("DEPOSIT_DISPUTE"),
+
+    /** Customer contested the handover: the item must be located (tany-backend `lib/types.ts`). */
+    HANDOVER_DISPUTED("HANDOVER_DISPUTED"),
+
+    /** Rental closed without a confirmed return location: the item must be located. */
+    ASSET_LOCATION_UNRESOLVED("ASSET_LOCATION_UNRESOLVED"),
     UNKNOWN("");
 
     object Serializer : WireEnumSerializer<IncidentType>("IncidentType", entries, UNKNOWN)

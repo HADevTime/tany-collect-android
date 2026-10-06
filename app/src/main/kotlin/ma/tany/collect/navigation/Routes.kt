@@ -33,11 +33,23 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class AssetRoute(val assetId: String)
 
+/** Matériel › scan an asset label to open its sheet (`assets/lookup`). */
+@Serializable data object AssetLookupRoute
+
 @Serializable data object ShowcaseRoute
 
 @Serializable data object AuthPhoneRoute
 
-@Serializable data class AuthOtpRoute(val phone: String, val devCode: String? = null)
+/** Values from the server's OTP request: never assume a 6-digit code or a fixed resend delay. */
+@Serializable
+data class AuthOtpRoute(
+    val phone: String,
+    val devCode: String? = null,
+    val codeLength: Int = DEFAULT_OTP_LENGTH,
+    val resendAfterSeconds: Int = 0,
+)
+
+const val DEFAULT_OTP_LENGTH = 6
 
 object DeepLinks {
     const val SCHEME = "tanycollect"

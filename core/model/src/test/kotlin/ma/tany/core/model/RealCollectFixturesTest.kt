@@ -161,4 +161,18 @@ class RealCollectFixturesTest {
         val asset = TanyJson.parseToJsonElement(Fixtures.read(real("err_asset"))).jsonObject["error"] as JsonObject
         assertEquals(ApiErrorCode.PICKUP_TOO_EARLY, ApiErrorCode.Serializer.fromWire(asset["code"]?.jsonPrimitive?.content))
     }
+
+    @Test
+    fun assetLifecycleKeepsTheServerFloatAndInstant() {
+        // Backend `assetLifecycle`: percentage = max(usage %, age %) unrounded, replacement date = toISOString().
+        val lifecycle = TanyJson.decodeFromString<ma.tany.core.model.collect.AssetLifecycle>(
+            """{"status":"watch","label":"À surveiller","percentage":33.33,"estimatedReplacementDate":"2027-03-01T00:00:00.000Z","estimatedRemainingUses":12}""",
+        )
+        assertEquals(ma.tany.core.model.collect.AssetLifecycleStatus.WATCH, lifecycle.status)
+        assertEquals(33.33, lifecycle.percentage!!, 0.0)
+        assertEquals(java.time.Instant.parse("2027-03-01T00:00:00Z"), lifecycle.estimatedReplacementDate)
+        // The real « not configured » capture still decodes.
+        val full = Fixtures.decode<AssetDetailResponse>(real("asset_detail_full"))
+        assertEquals(ma.tany.core.model.collect.AssetLifecycleStatus.NOT_CONFIGURED, full.asset.lifecycle?.status)
+    }
 }

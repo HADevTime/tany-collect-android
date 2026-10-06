@@ -4,6 +4,7 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -176,6 +177,10 @@ fun TanyMetricTile(
     tone: TanyTone? = null,
     @DrawableRes icon: Int? = null,
     onChrome: Boolean = false,
+    /** A zero / inactive counter: text and glyph are muted (the label still says what it counts). */
+    muted: Boolean = false,
+    /** Tile is a shortcut (e.g. jump to its section): button semantics, ≥ 48 dp. */
+    onClick: (() -> Unit)? = null,
 ) {
     val colors = TanyTheme.colors
     val toneColors = tone?.colors()
@@ -185,6 +190,7 @@ fun TanyMetricTile(
         else -> colors.surface
     }
     val valueColor = when {
+        muted -> if (onChrome) colors.onChromeMuted else colors.textSubtle
         onChrome && tone != null -> toneColors!!.accent
         onChrome -> colors.onChrome
         toneColors != null -> toneColors.content
@@ -200,6 +206,8 @@ fun TanyMetricTile(
             .clip(TanyTheme.radii.large)
             .background(container)
             .then(if (!onChrome && toneColors == null) Modifier.border(TanyDimens.BorderWidth, colors.border, TanyTheme.radii.large) else Modifier)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .heightIn(min = TanyDimens.MinTouchTarget)
             .semantics(mergeDescendants = true) {}
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -411,4 +419,26 @@ fun TanyVerticalRule(modifier: Modifier = Modifier) {
             .fillMaxHeight()
             .background(TanyTheme.colors.divider),
     )
+}
+
+/** Thin rounded progress bar (bonus tiers, asset wear). [progress] is a server ratio, clamped to 0…1. */
+@Composable
+fun TanyProgressBar(progress: Float, modifier: Modifier = Modifier, tone: TanyTone? = null) {
+    val colors = TanyTheme.colors
+    val clamped = progress.coerceIn(0f, 1f)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .clip(TanyTheme.radii.pill)
+            .background(colors.neutral),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(clamped)
+                .height(6.dp)
+                .clip(TanyTheme.radii.pill)
+                .background(tone?.colors()?.accent ?: colors.primaryAction),
+        )
+    }
 }

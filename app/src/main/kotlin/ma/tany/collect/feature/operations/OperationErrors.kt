@@ -64,3 +64,65 @@ fun CollectOperationError.text(): String = when (this) {
         stringResource(error.messageRes())
     }
 }
+
+/** Short title of a refusal (iOS « CollectFailure » titles) — the message comes from [text] / [scanText]. */
+@Composable
+fun CollectOperationError.title(): String = stringResource(
+    when (this) {
+        is CollectOperationError.Qr -> when (code) {
+            ApiErrorCode.QR_EXPIRED -> R.string.op_err_title_qr_expired
+            ApiErrorCode.QR_ALREADY_USED -> R.string.op_err_title_qr_used
+            ApiErrorCode.QR_WRONG_PURPOSE -> R.string.op_err_title_qr_wrong_purpose
+            ApiErrorCode.QR_WRONG_BOOKING -> R.string.op_err_title_qr_wrong_booking
+            ApiErrorCode.QR_STALE -> R.string.op_err_title_amount_updated
+            else -> R.string.op_err_title_qr_unknown
+        }
+        is CollectOperationError.AssetMismatch -> R.string.op_asset_wrong_item_title
+        CollectOperationError.WrongPoint -> R.string.op_err_title_wrong_point
+        is CollectOperationError.TooEarly -> R.string.op_err_title_too_early
+        CollectOperationError.IdentityRequired -> R.string.op_err_title_identity
+        CollectOperationError.Photo -> R.string.op_err_title_photo
+        CollectOperationError.NotAllowedNow -> R.string.op_err_title_not_possible
+        CollectOperationError.RateLimited -> R.string.op_err_title_rate_limited
+        is CollectOperationError.DepositAmountChanged -> R.string.op_err_title_amount_updated
+        CollectOperationError.DepositRefundQrRequired -> R.string.op_err_title_deposit_qr
+        is CollectOperationError.Other -> when (val e = error) {
+            is ApiError.Network -> R.string.op_err_title_offline
+            ApiError.Unauthorized -> R.string.op_err_title_session
+            is ApiError.Http -> when (e.code) {
+                ApiErrorCode.FORBIDDEN -> R.string.op_err_title_forbidden
+                ApiErrorCode.UNAUTHORIZED -> R.string.op_err_title_session
+                else -> R.string.op_err_title_generic
+            }
+            else -> R.string.op_err_title_generic
+        }
+    },
+)
+
+/**
+ * Message of a refusal on the SCANNER (no booking on screen yet): same codes as [text], but the recovery is « scan a new
+ * QR » — nothing was re-read, and after a network failure the token may already be consumed (never retried).
+ */
+@Composable
+fun CollectOperationError.scanText(): String = when (this) {
+    CollectOperationError.NotAllowedNow -> stringResource(R.string.op_scan_not_possible)
+    CollectOperationError.RateLimited -> stringResource(R.string.error_qr_rate_limited)
+    is CollectOperationError.Other -> if (error is ApiError.Network) stringResource(R.string.op_scan_network) else text()
+    else -> text()
+}
+
+/** Glyph of a refusal card. */
+fun CollectOperationError.icon(): Int = when (this) {
+    CollectOperationError.WrongPoint -> ma.tany.core.designsystem.R.drawable.ic_tany_store
+    CollectOperationError.IdentityRequired -> ma.tany.core.designsystem.R.drawable.ic_tany_shield
+    is CollectOperationError.TooEarly -> ma.tany.core.designsystem.R.drawable.ic_tany_clock
+    is CollectOperationError.DepositAmountChanged -> ma.tany.core.designsystem.R.drawable.ic_tany_cash
+    is CollectOperationError.Other -> if (error is ApiError.Network) {
+        ma.tany.core.designsystem.R.drawable.ic_tany_refresh
+    } else {
+        ma.tany.core.designsystem.R.drawable.ic_tany_error
+    }
+    is CollectOperationError.Qr, CollectOperationError.RateLimited, CollectOperationError.DepositRefundQrRequired ->
+        ma.tany.core.designsystem.R.drawable.ic_tany_qr
+    else -> ma.tany.core.designsystem.R.drawable.ic_tany_error
+}

@@ -3,6 +3,15 @@ package ma.tany.collect.feature.revenue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -108,10 +117,18 @@ class SettlementViewModel @Inject constructor(private val repository: CollectBus
     private val _ui = MutableStateFlow(SettlementUi())
     val ui: StateFlow<SettlementUi> = _ui.asStateFlow()
 
+    /** Agent declaration already presented to the merchant (the sheet opens once per declaration, iOS behaviour). */
+    var promptedConfirmationId: String? = null
+
+    /** Server clock − device clock, from `serverTime` (the QR countdown is display only, the server decides expiry). */
+    @Volatile var clockOffsetMs: Long = 0L
+        private set
+
     fun load(pointId: String) {
         if (_state.value !is LoadState.Loaded) _state.value = LoadState.Loading
         viewModelScope.launch {
             val result = repository.settlement(pointId)
+            (result as? ApiResult.Success)?.value?.serverTime?.let { clockOffsetMs = it.toEpochMilli() - System.currentTimeMillis() }
             if (result is ApiResult.Success || _state.value !is LoadState.Loaded) _state.value = result.toLoadState()
             // The agent moved the collection on (scanned / declared): the old QR is no longer useful.
             val active = (result as? ApiResult.Success)?.value?.activeCollection
@@ -171,13 +188,51 @@ fun SettlementScreen(pointId: String, onBack: () -> Unit, viewModel: SettlementV
     val state by viewModel.state.collectAsStateWithLifecycle()
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val confirmation = rememberConfirmationState()
-    val confirmTitle = stringResource(R.string.settlement_confirm_title)
-    val confirmMessage = stringResource(R.string.settlement_confirm_message)
-    val confirmCta = stringResource(R.string.settlement_confirm_cta)
-    val disputeTitle = stringResource(R.string.settlement_dispute_title)
-    val disputeMessage = stringResource(R.string.settlement_dispute_message)
-    val disputeCta = stringResource(R.string.settlement_dispute_cta)
-    val confirmAmountLabel = stringResource(R.string.settlement_agent_declared)
+    val context = LocalContext.current
+    val formatters = LocalTanyFormatters.current
+    val active = (state as? LoadState.Loaded)?.value?.activeCollection
+    val qrShown = ui.qr != null && ui.qr?.collectionId == active?.id
+    val lifecycleOwner = LocalLifecycleOwner.current
+    // The agent works from another device: follow the visit live (idempotent GET every 4 s) while it is in progress,
+    // waits for the merchant, or the QR is on screen.
+    val following = active != null &&
+        (active.status == CollectionStatus.IN_PROGRESS || active.status == CollectionStatus.AWAITING_MERCHANT || (qrShown && active.status == CollectionStatus.SCHEDULED))
+    LaunchedEffect(following, lifecycleOwner) {
+        if (following) {
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (true) {
+                    delay(SETTLEMENT_POLL_MS)
+                    viewModel.load(pointId)
+                }
+            }
+        }
+    }
+    val confirmRequest: (SettlementCollection) -> ConfirmationRequest? = { collection ->
+        collection.agentConfirmedAmount?.let { declared ->
+            val expected = collection.expectedAmount
+            val remaining = collection.declaredRemainingAmount?.takeIf { !it.isZero }
+            ConfirmationRequest(
+                id = "settle-confirm",
+                title = context.getString(R.string.settlement_confirm_title),
+                message = if (expected != null && remaining != null) {
+                    context.getString(R.string.settlement_confirm_shortfall, formatters.money(expected), formatters.money(declared), formatters.money(remaining))
+                } else {
+                    context.getString(R.string.settlement_confirm_message)
+                },
+                confirmLabel = context.getString(R.string.settlement_confirm_cta_amount, formatters.money(declared)),
+                kind = ConfirmationKind.FINANCIAL,
+                amount = declared,
+                amountLabel = context.getString(R.string.settlement_agent_declared),
+            )
+        }
+    }
+    // A new agent declaration opens the confirmation once (never re-opened after « Annuler »).
+    LaunchedEffect(active?.agentConfirmationId, active?.confirmationRequired) {
+        val id = active?.agentConfirmationId
+        if (active != null && active.confirmationRequired && id != null && id != viewModel.promptedConfirmationId) {
+            confirmRequest(active)?.let { if (confirmation.show(it)) viewModel.promptedConfirmationId = id }
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
         TanyTopBar(
@@ -200,24 +255,27 @@ fun SettlementScreen(pointId: String, onBack: () -> Unit, viewModel: SettlementV
                     ui = ui,
                     onRefresh = { viewModel.load(pointId) },
                     onShowQr = { viewModel.showQr(pointId, it) },
+                    clockOffsetMs = viewModel.clockOffsetMs,
                     onConfirm = { collection ->
-                        collection.agentConfirmedAmount?.let { amount ->
-                            confirmation.show(
-                                ConfirmationRequest(
-                                    id = "settle-confirm",
-                                    title = confirmTitle,
-                                    message = confirmMessage,
-                                    confirmLabel = confirmCta,
-                                    kind = ConfirmationKind.FINANCIAL,
-                                    amount = amount,
-                                    amountLabel = confirmAmountLabel,
-                                ),
-                            )
+                        confirmRequest(collection)?.let {
+                            if (confirmation.show(it)) viewModel.promptedConfirmationId = collection.agentConfirmationId
                         }
                     },
-                    onDispute = {
+                    onDispute = { collection ->
+                        val declared = collection.agentConfirmedAmount
                         confirmation.show(
-                            ConfirmationRequest(id = "settle-dispute", title = disputeTitle, message = disputeMessage, confirmLabel = disputeCta, kind = ConfirmationKind.DESTRUCTIVE),
+                            ConfirmationRequest(
+                                id = "settle-dispute",
+                                title = context.getString(R.string.settlement_dispute_title),
+                                message = if (declared != null) {
+                                    context.getString(R.string.settlement_dispute_message_amount, formatters.money(declared))
+                                } else {
+                                    context.getString(R.string.settlement_dispute_message)
+                                },
+                                confirmLabel = context.getString(R.string.settlement_dispute_cta),
+                                kind = ConfirmationKind.STANDARD,
+                                icon = DsR.drawable.ic_tany_warning,
+                            ),
                         )
                     },
                 )
@@ -225,11 +283,11 @@ fun SettlementScreen(pointId: String, onBack: () -> Unit, viewModel: SettlementV
         }
     }
     ConfirmationSheetHost(confirmation) { request ->
-        val active = (state as? LoadState.Loaded)?.value?.activeCollection
+        val current = (state as? LoadState.Loaded)?.value?.activeCollection
         when {
-            active == null -> confirmation.finish()
-            request.id == "settle-confirm" -> viewModel.confirm(pointId, active, confirmation::finish)
-            request.id == "settle-dispute" -> viewModel.dispute(pointId, active.id, confirmation::finish)
+            current == null -> confirmation.finish()
+            request.id == "settle-confirm" -> viewModel.confirm(pointId, current, confirmation::finish)
+            request.id == "settle-dispute" -> viewModel.dispute(pointId, current.id, confirmation::finish)
             else -> confirmation.finish()
         }
     }
@@ -240,10 +298,11 @@ fun SettlementScreen(pointId: String, onBack: () -> Unit, viewModel: SettlementV
 private fun Content(
     overview: SettlementOverview,
     ui: SettlementUi,
+    clockOffsetMs: Long,
     onRefresh: () -> Unit,
     onShowQr: (String) -> Unit,
     onConfirm: (SettlementCollection) -> Unit,
-    onDispute: () -> Unit,
+    onDispute: (SettlementCollection) -> Unit,
 ) {
     val colors = TanyTheme.colors
     val formatters = LocalTanyFormatters.current
@@ -290,7 +349,7 @@ private fun Content(
                 }
             }
         }
-        overview.activeCollection?.let { ActiveCollection(it, ui, onShowQr, onConfirm, onDispute) }
+        overview.activeCollection?.let { ActiveCollection(it, ui, clockOffsetMs, onShowQr, onConfirm, onDispute) }
         ui.error?.let { TanyNotice(message = stringResource(it.text()), tone = TanyTone.DANGER) }
         overview.heldDeposits?.takeIf { it.count > 0 }?.let { held ->
             // Customer deposits are not part of the settlement: never handed to the agent.
@@ -303,9 +362,10 @@ private fun Content(
             TanySectionHeader(stringResource(R.string.settlement_breakdown), modifier = Modifier.padding(top = 8.dp))
             TanyCard {
                 TanyInfoRow(stringResource(R.string.settlement_rental_revenue)) { MoneyText(b.rentalRevenue) }
-                TanyInfoRow(stringResource(R.string.settlement_commission)) { MoneyText(b.commission) }
-                if (!b.bonus.isZero) TanyInfoRow(stringResource(R.string.settlement_bonus)) { MoneyText(b.bonus) }
-                if (!b.partnerAdjustments.isZero) TanyInfoRow(stringResource(R.string.settlement_partner_adjustments)) { MoneyText(b.partnerAdjustments) }
+                // Deductions shown with a leading « − » (presentation of the server values, no arithmetic).
+                TanyInfoRow(stringResource(R.string.settlement_commission)) { Deduction(b.commission) }
+                if (!b.bonus.isZero) TanyInfoRow(stringResource(R.string.settlement_bonus)) { Deduction(b.bonus) }
+                if (!b.partnerAdjustments.isZero) TanyInfoRow(stringResource(R.string.settlement_partner_adjustments)) { Deduction(b.partnerAdjustments) }
                 TanyInfoRow(stringResource(R.string.settlement_tany_share)) { MoneyText(b.tanyRentalShare) }
                 if (!b.depositsRetained.isZero) TanyInfoRow(stringResource(R.string.settlement_deposits_retained)) { MoneyText(b.depositsRetained) }
                 if (!b.settlementAdjustments.isZero) TanyInfoRow(stringResource(R.string.settlement_adjustments)) { MoneyText(b.settlementAdjustments) }
@@ -375,9 +435,10 @@ private fun Content(
 private fun ActiveCollection(
     collection: SettlementCollection,
     ui: SettlementUi,
+    clockOffsetMs: Long,
     onShowQr: (String) -> Unit,
     onConfirm: (SettlementCollection) -> Unit,
-    onDispute: () -> Unit,
+    onDispute: (SettlementCollection) -> Unit,
 ) {
     val colors = TanyTheme.colors
     val formatters = LocalTanyFormatters.current
@@ -396,7 +457,9 @@ private fun ActiveCollection(
             }
         }
         // Agent's display name: data, verbatim.
-        collection.agentName?.let { TanyInfoRow(stringResource(R.string.settlement_agent), icon = DsR.drawable.ic_tany_person) { Text(it, style = TanyTheme.typography.bodyStrong) } }
+        (collection.agentPersonName ?: collection.agentName)?.let {
+            TanyInfoRow(stringResource(R.string.settlement_agent), icon = DsR.drawable.ic_tany_person) { Text(it, style = TanyTheme.typography.bodyStrong) }
+        }
         collection.expectedAmount?.let { TanyInfoRow(stringResource(R.string.settlement_expected), icon = DsR.drawable.ic_tany_cash) { MoneyText(it) } }
 
         if (collection.confirmationRequired) {
@@ -426,7 +489,7 @@ private fun ActiveCollection(
             }
             TanyButton(
                 stringResource(R.string.settlement_dispute_action),
-                onDispute,
+                { onDispute(collection) },
                 style = TanyButtonStyle.SECONDARY,
                 enabled = ui.busy == null,
                 loading = ui.busy == SettlementGesture.DISPUTE,
@@ -434,7 +497,18 @@ private fun ActiveCollection(
         } else if (collection.qrAvailable) {
             TanyNotice(message = stringResource(R.string.settlement_qr_hint), tone = TanyTone.INFO, icon = DsR.drawable.ic_tany_qr)
             val qr = ui.qr?.takeIf { it.collectionId == collection.id }
+            // Countdown on the server clock (display only: the server decides whether the QR is still valid).
+            val expiresAt = qr?.expiresAt
+            val secondsLeft by produceState(initialValue = expiresAt?.let { qrSecondsLeft(it, clockOffsetMs) } ?: 0, expiresAt, clockOffsetMs) {
+                while (expiresAt != null) {
+                    value = qrSecondsLeft(expiresAt, clockOffsetMs)
+                    if (value <= 0) break
+                    delay(1_000)
+                }
+            }
+            val expired = qr != null && secondsLeft <= 0
             if (qr != null) {
+                Box(contentAlignment = Alignment.Center) {
                 // White studio in both themes so any agent scanner reads it.
                 Column(
                     modifier = Modifier
@@ -451,9 +525,23 @@ private fun ActiveCollection(
                         contentDescription = stringResource(R.string.settlement_qr_description),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .widthIn(max = 280.dp),
+                            .widthIn(max = 280.dp)
+                            .alpha(if (expired) 0.15f else 1f),
                     )
                 }
+                if (expired) {
+                    TanyStatusChip(stringResource(R.string.settlement_qr_expired), TanyTone.DANGER)
+                }
+                }
+                Text(
+                    if (expired) stringResource(R.string.settlement_qr_expired) else stringResource(R.string.settlement_qr_expires_in, secondsLeft, ltrIsolated(qr.collectionReference)),
+                    style = TanyTheme.typography.label,
+                    color = if (expired) colors.danger.accent else colors.textMuted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (expired) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier),
+                )
                 Text(
                     ltrIsolated(qr.shortCode.chunked(3).joinToString(" ")),
                     style = TanyTheme.typography.codeLarge,
@@ -461,12 +549,18 @@ private fun ActiveCollection(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 TanyInfoRow(stringResource(R.string.settlement_expected), icon = DsR.drawable.ic_tany_cash) { MoneyText(qr.expectedAmount) }
-                TanyInfoRow(stringResource(R.string.settlement_qr_expires), icon = DsR.drawable.ic_tany_clock) { BusinessDateTimeText(qr.expiresAt, style = TanyTheme.typography.label) }
+                TanyNotice(message = stringResource(R.string.settlement_qr_no_deposits), tone = TanyTone.WARNING, icon = DsR.drawable.ic_tany_lock)
             }
             TanyButton(
-                stringResource(if (qr == null) R.string.settlement_qr_show else R.string.settlement_qr_renew),
+                stringResource(
+                    when {
+                        qr == null -> R.string.settlement_qr_show
+                        expired -> R.string.settlement_qr_show_new
+                        else -> R.string.settlement_qr_renew
+                    },
+                ),
                 { onShowQr(collection.id) },
-                style = if (qr == null) TanyButtonStyle.PRIMARY else TanyButtonStyle.SECONDARY,
+                style = if (qr == null || expired) TanyButtonStyle.PRIMARY else TanyButtonStyle.SECONDARY,
                 enabled = ui.busy == null,
                 loading = ui.busy == SettlementGesture.QR,
                 icon = DsR.drawable.ic_tany_qr,
@@ -477,13 +571,29 @@ private fun ActiveCollection(
     }
 }
 
+@Composable
+private fun Deduction(amount: ma.tany.core.model.common.MoneyAmount) {
+    Text(
+        ltrIsolated("− " + LocalTanyFormatters.current.money(amount)),
+        style = TanyTheme.typography.amount,
+        color = TanyTheme.colors.textMuted,
+        maxLines = 1,
+    )
+}
+
+/** Re-read cadence while the agent's visit is followed live (same as TANY Collect iOS). */
+private const val SETTLEMENT_POLL_MS = 4_000L
+
+private fun qrSecondsLeft(expiresAt: java.time.Instant, clockOffsetMs: Long): Int =
+    ((expiresAt.toEpochMilli() - (System.currentTimeMillis() + clockOffsetMs)) / 1_000).toInt().coerceAtLeast(0)
+
 private fun SettlementActionError.text(): Int = when (this) {
     SettlementActionError.Stale -> R.string.settlement_error_stale
     SettlementActionError.NotAllowedNow -> R.string.settlement_error_not_allowed
     is SettlementActionError.Other -> error.messageRes()
 }
 
-private fun SettlementStatus.label(): Int = when (this) {
+internal fun SettlementStatus.label(): Int = when (this) {
     SettlementStatus.NOT_CONFIGURED -> R.string.settlement_status_not_configured
     SettlementStatus.NOTHING_DUE -> R.string.settlement_status_nothing_due
     SettlementStatus.DUE -> R.string.settlement_status_due
@@ -494,7 +604,7 @@ private fun SettlementStatus.label(): Int = when (this) {
     SettlementStatus.UNKNOWN -> R.string.settlement_status_unknown
 }
 
-private fun SettlementStatus.tone(): TanyTone = when (this) {
+internal fun SettlementStatus.tone(): TanyTone = when (this) {
     SettlementStatus.NOTHING_DUE -> TanyTone.SUCCESS
     SettlementStatus.DUE, SettlementStatus.PARTIALLY_COLLECTED -> TanyTone.WARNING
     SettlementStatus.CONFIRMATION_REQUIRED -> TanyTone.ACTION

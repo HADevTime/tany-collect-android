@@ -1,6 +1,18 @@
 package ma.tany.collect.feature.account
 
 import androidx.annotation.DrawableRes
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import ma.tany.collect.core.ui.openingLabel
+import ma.tany.collect.core.ui.openingTone
+import ma.tany.core.designsystem.component.TanyToneIcon
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -101,6 +113,7 @@ fun AccountScreen(
     onOpenNotifications: () -> Unit,
     unreadNotifications: Int,
     onOpenShowcase: (() -> Unit)?,
+    inboxEnabled: Boolean = true,
     viewModel: AccountViewModel = hiltViewModel(),
 ) {
     val theme by viewModel.theme.collectAsStateWithLifecycle()
@@ -113,6 +126,8 @@ fun AccountScreen(
     val logoutLabel = stringResource(R.string.account_logout)
     val switchMessages = me?.collectPoints.orEmpty().associate { it.id to stringResource(R.string.point_switch_confirm_message, it.name) }
 
+    val context = LocalContext.current
+    var showHelp by rememberSaveable { mutableStateOf(false) }
     val colors = TanyTheme.colors
     Column(
         modifier = Modifier
@@ -141,13 +156,15 @@ fun AccountScreen(
                                 Text("${it.address} · ${it.city}", style = TanyTheme.typography.caption, color = colors.textMuted)
                             }
                         }
-                        activePoint?.let {
-                            TanyStatusChip(
-                                stringResource(if (it.isOpenNow) R.string.point_open else R.string.point_closed),
-                                if (it.isOpenNow) TanyTone.SUCCESS else TanyTone.NEUTRAL,
-                                size = TanyChipSize.SMALL,
-                            )
-                        }
+                    }
+                    activePoint?.let {
+                        // Structured server opening state (« Ouvert jusqu’à 20:00 »), never the French prose.
+                        TanyStatusChip(
+                            it.openingLabel(),
+                            it.openingTone(),
+                            size = TanyChipSize.SMALL,
+                            modifier = Modifier.padding(start = 78.dp, end = 16.dp, bottom = 14.dp),
+                        )
                     }
                     val others = me?.collectPoints.orEmpty().filter { it.id != activePointId }
                     others.forEach { point ->
@@ -190,8 +207,9 @@ fun AccountScreen(
                         leadingTone = TanyTone.INFO,
                         onClick = onOpenSettlement,
                     )
-                    TanyDivider(inset = 66.dp)
-                    TanyRow(
+                    // The inbox row only exists when the server module is ON (`unread-count.enabled`).
+                    if (inboxEnabled) TanyDivider(inset = 66.dp)
+                    if (inboxEnabled) TanyRow(
                         title = stringResource(R.string.notifications_title),
                         subtitle = if (unreadNotifications > 0) {
                             stringResource(R.string.notifications_unread_count, unreadNotifications)
@@ -235,6 +253,32 @@ fun AccountScreen(
                 )
             }
 
+            TanySectionHeader(stringResource(R.string.account_support_section), modifier = Modifier.padding(top = 12.dp))
+            TanyCard(contentPadding = 0.dp) {
+                Column {
+                    TanyRow(
+                        title = stringResource(R.string.account_help),
+                        subtitle = stringResource(R.string.account_help_hint),
+                        leadingIcon = DsR.drawable.ic_tany_info,
+                        leadingTone = TanyTone.INFO,
+                        onClick = { showHelp = true },
+                    )
+                    TanyDivider(inset = 66.dp)
+                    TanyRow(
+                        title = stringResource(R.string.account_support),
+                        subtitle = stringResource(R.string.account_support_hint),
+                        leadingIcon = DsR.drawable.ic_tany_person,
+                        onClick = { openWeb(context, SUPPORT_PATH) },
+                    )
+                    TanyDivider(inset = 66.dp)
+                    TanyRow(
+                        title = stringResource(R.string.account_privacy),
+                        leadingIcon = DsR.drawable.ic_tany_shield,
+                        onClick = { openWeb(context, PRIVACY_PATH) },
+                    )
+                }
+            }
+
             if (onOpenShowcase != null || !AppEnvironment.isProduction) {
                 TanySectionHeader(stringResource(R.string.account_internal_section), modifier = Modifier.padding(top = 12.dp))
                 TanyCard(contentPadding = 0.dp) {
@@ -275,7 +319,7 @@ fun AccountScreen(
                 )
             }
             Text(
-                stringResource(R.string.account_version, BuildConfig.VERSION_NAME),
+                stringResource(R.string.account_version_build, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
                 style = TanyTheme.typography.caption,
                 color = colors.textSubtle,
                 textAlign = TextAlign.Center,
@@ -285,11 +329,55 @@ fun AccountScreen(
             )
         }
     }
+    if (showHelp) HelpSheet(onDismiss = { showHelp = false })
     ConfirmationSheetHost(confirmation) { request ->
         when {
             request.id == "logout" -> viewModel.logout(onDone = confirmation::finish)
             request.id.startsWith("switch:") -> viewModel.switchPoint(request.id.removePrefix("switch:"), onDone = confirmation::finish)
             else -> confirmation.finish()
+        }
+    }
+}
+
+internal const val SUPPORT_PATH = "/support"
+internal const val PRIVACY_PATH = "/confidentialite"
+
+/** Public web page of the current environment (support, privacy); silently ignored without a browser. */
+internal fun webUrl(path: String): String = AppEnvironment.endpoint.baseUrl.trimEnd('/') + path
+
+private fun openWeb(context: Context, path: String) {
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl(path)))) }
+}
+
+/** Short merchant guide (scan, deposits, settlement), same topics as the iOS help sheet. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HelpSheet(onDismiss: () -> Unit) {
+    val colors = TanyTheme.colors
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surface) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(stringResource(R.string.account_help), style = TanyTheme.typography.title, modifier = Modifier.semantics { heading() })
+            listOf(
+                Triple(DsR.drawable.ic_tany_scan, R.string.help_scan_title, R.string.help_scan_body),
+                Triple(DsR.drawable.ic_tany_keyboard, R.string.help_code_title, R.string.help_code_body),
+                Triple(DsR.drawable.ic_tany_lock, R.string.help_deposit_title, R.string.help_deposit_body),
+                Triple(DsR.drawable.ic_tany_receipt, R.string.help_settlement_title, R.string.help_settlement_body),
+                Triple(DsR.drawable.ic_tany_warning, R.string.help_problem_title, R.string.help_problem_body),
+            ).forEach { (icon, title, body) ->
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    TanyToneIcon(icon, TanyTone.NEUTRAL, size = 36.dp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(stringResource(title), style = TanyTheme.typography.bodyStrong)
+                        Text(stringResource(body), style = TanyTheme.typography.label, color = colors.textMuted)
+                    }
+                }
+            }
         }
     }
 }

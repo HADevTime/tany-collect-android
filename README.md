@@ -16,7 +16,8 @@ deposit. The deposit hand-back, revenue and settlement flows come next.
 `HADevTime/tany-backend` is the **only business authority**: `docs/API_CONTRACT_V1.md` (frozen contract),
 `docs/MVP_SCOPE_V1.md` (scope, § 2 TANY Collect), `docs/LOCALIZATION.md` (FR / EN / AR glossary),
 `docs/MANUAL_QA_IOS_MVP.md` § B (expected merchant behaviors). When docs and code differ, the backend
-implementation wins (see real-backend fixtures). The iOS app is a UX reference only — never read Swift for rules.
+implementation wins (see real-backend fixtures). The iOS app is a UX reference only — never read Swift for rules. Screen-by-screen parity with iOS (and the
+intentional differences) is tracked in [`docs/IOS_PARITY.md`](docs/IOS_PARITY.md).
 
 Merchant guarantees enforced by the backend and never bypassed by the app: double confirmation (only the customer
 finalizes pickup / return / deposit refund), no merchant financial decision, no merchant cancellation, minimal

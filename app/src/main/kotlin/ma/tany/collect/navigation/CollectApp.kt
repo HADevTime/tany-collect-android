@@ -5,6 +5,17 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.BadgedBox
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import ma.tany.core.designsystem.component.TanyBadge
+import ma.tany.core.designsystem.component.TanyTone
+import ma.tany.core.model.collect.TodayCounts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
@@ -51,6 +62,7 @@ import ma.tany.collect.feature.auth.OtpScreen
 import ma.tany.collect.feature.auth.PhoneScreen
 import ma.tany.collect.feature.booking.BookingDetailScreen
 import ma.tany.collect.feature.equipment.AssetDetailScreen
+import ma.tany.collect.feature.equipment.AssetLookupScreen
 import ma.tany.collect.feature.equipment.EquipmentScreen
 import ma.tany.collect.feature.notifications.NotificationsScreen
 import ma.tany.collect.feature.revenue.RevenueScreen
@@ -82,17 +94,26 @@ import kotlin.reflect.KClass
 fun CollectApp(sessionState: SessionState, activePointId: String?) {
     when {
         sessionState == SessionState.Loading || activePointId == null -> TanyLoadingState()
-        sessionState is SessionState.SignedOut -> AuthFlow()
+        sessionState is SessionState.SignedOut -> AuthFlow(sessionExpired = sessionState.expired)
         activePointId.isEmpty() -> PointPickerScreen()
-        else -> MainShell(activePointId)
+        // A new point = a new shell: navigation, back stacks and every screen ViewModel start over, so no data of the
+        // previous point can stay on screen (same as iOS « selectPoint » + « resetNavigation »).
+        else -> key(activePointId) { MainShell(activePointId) }
     }
 }
 
 @Composable
-private fun AuthFlow() {
+private fun AuthFlow(sessionExpired: Boolean) {
     val navController = rememberNavController()
     NavHost(navController, startDestination = AuthPhoneRoute) {
-        composable<AuthPhoneRoute> { PhoneScreen(onCodeSent = { phone, devCode -> navController.navigate(AuthOtpRoute(phone, devCode)) }) }
+        composable<AuthPhoneRoute> {
+            PhoneScreen(
+                sessionExpired = sessionExpired,
+                onCodeSent = { sent ->
+                    navController.navigate(AuthOtpRoute(sent.phone, sent.devCode, sent.codeLength, sent.resendAfterSeconds))
+                },
+            )
+        }
         composable<AuthOtpRoute> { OtpScreen(onBack = { navController.popBackStack() }) }
     }
 }
@@ -109,7 +130,26 @@ class ShellViewModel @Inject constructor(
     private val _unread = MutableStateFlow(0)
     val unread: StateFlow<Int> = _unread.asStateFlow()
 
-    fun load() {
+    private val _inboxEnabled = MutableStateFlow(false)
+
+    /** Notification centre module ON for this point (server flag): the bell / Account row are hidden otherwise. */
+    val inboxEnabled: StateFlow<Boolean> = _inboxEnabled.asStateFlow()
+
+    private val _attention = MutableStateFlow(0)
+
+    /** Today tab badge = server counters `late + blocked` of the last Today read (never computed from rows). */
+    val attention: StateFlow<Int> = _attention.asStateFlow()
+
+    private var loadedPoint: String? = null
+
+    fun load(pointId: String) {
+        if (loadedPoint != pointId) {
+            // Never show another point's counters while the new point loads.
+            loadedPoint = pointId
+            _unread.value = 0
+            _inboxEnabled.value = false
+            _attention.value = 0
+        }
         viewModelScope.launch { _me.value = repository.me().toLoadState() }
     }
 
@@ -117,8 +157,15 @@ class ShellViewModel @Inject constructor(
     fun refreshUnread(pointId: String) {
         viewModelScope.launch {
             val result = notifications.unreadCount(pointId)
-            if (result is ApiResult.Success) _unread.value = if (result.value.enabled) result.value.unreadCount else 0
+            if (result is ApiResult.Success && loadedPoint == pointId) {
+                _inboxEnabled.value = result.value.enabled
+                _unread.value = if (result.value.enabled) result.value.unreadCount else 0
+            }
         }
+    }
+
+    fun onTodayCounts(pointId: String, counts: TodayCounts) {
+        if (loadedPoint == pointId) _attention.value = counts.late + counts.blocked
     }
 }
 
@@ -126,7 +173,7 @@ private data class Tab(val route: Any, val type: KClass<*>, @StringRes val label
 
 @Composable
 private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) {
-    LaunchedEffect(pointId) { shell.load() }
+    LaunchedEffect(pointId) { shell.load(pointId) }
     val meState by shell.me.collectAsStateWithLifecycle()
     val me = (meState as? LoadState.Loaded)?.value
     val pointName = me?.collectPoints?.firstOrNull { it.id == pointId }?.shortName
@@ -143,6 +190,8 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
     val backStack by navController.currentBackStackEntryAsState()
     val destination = backStack?.destination
     val unread by shell.unread.collectAsStateWithLifecycle()
+    val inboxEnabled by shell.inboxEnabled.collectAsStateWithLifecycle()
+    val attention by shell.attention.collectAsStateWithLifecycle()
     // Re-read the unread count each time the merchant comes back to a tab (after the centre, a booking…).
     LaunchedEffect(pointId, backStack?.id) { shell.refreshUnread(pointId) }
     val openLink: (String) -> Unit = { link ->
@@ -163,10 +212,30 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
                     TanyDivider()
                     NavigationBar(containerColor = colors.surface, tonalElevation = 0.dp) {
                         tabs.forEach { tab ->
+                            val selected = destination?.hierarchy?.any { it.hasRoute(tab.type) } == true
+                            val badge = if (tab.route == TodayRoute) attention else 0
+                            val badgeLabel = if (badge > 0) pluralStringResource(R.plurals.nav_today_attention, badge, badge) else null
                             NavigationBarItem(
-                                selected = destination?.hierarchy?.any { it.hasRoute(tab.type) } == true,
+                                selected = selected,
                                 onClick = { navController.navigateTab(tab.route) },
-                                icon = { Icon(painterResource(tab.icon), contentDescription = null) },
+                                modifier = if (badgeLabel != null) Modifier.semantics { stateDescription = badgeLabel } else Modifier,
+                                icon = {
+                                    if (tab.route == ScanRoute) {
+                                        // The Scanner is the counter's main gesture: always highlighted (iOS central pink tab).
+                                        Box(
+                                            Modifier
+                                                .clip(TanyTheme.radii.pill)
+                                                .background(colors.accent)
+                                                .padding(horizontal = 14.dp, vertical = 4.dp),
+                                        ) {
+                                            Icon(painterResource(tab.icon), contentDescription = null, tint = colors.onAccent)
+                                        }
+                                    } else {
+                                        BadgedBox(badge = { if (badge > 0) TanyBadge(if (badge > 99) "99+" else badge.toString(), tone = TanyTone.DANGER) }) {
+                                            Icon(painterResource(tab.icon), contentDescription = null)
+                                        }
+                                    }
+                                },
                                 label = { Text(stringResource(tab.label), maxLines = 1) },
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = colors.onAccentContainer,
@@ -189,6 +258,8 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
                     pointName = pointName,
                     unreadNotifications = unread,
                     onOpenNotifications = { navController.navigate(NotificationsRoute) },
+                    inboxEnabled = inboxEnabled,
+                    onCounts = { shell.onTodayCounts(pointId, it) },
                     onOpenBooking = openBooking,
                     shortcuts = TodayShortcuts(
                         scan = { navController.navigateTab(ScanRoute) },
@@ -199,15 +270,34 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
             }
             composable<ScanRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.SCAN })) {
                 // Scanner tab: the server resolves the booking and the purpose from the customer's code.
-                OperationScanScreen(pointId = pointId, onDone = openBooking, onBack = null)
+                OperationScanScreen(pointId = pointId, onDone = openBooking, onBack = null, pointName = pointName)
             }
             composable<OperationScanRoute> {
-                OperationScanScreen(pointId = pointId, onDone = { navController.popBackStack() }, onBack = { navController.popBackStack() })
+                OperationScanScreen(
+                    pointId = pointId,
+                    onDone = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
+                    pointName = pointName,
+                )
             }
             composable<ActivityRoute>(deepLinks = listOf(navDeepLink { uriPattern = DeepLinks.ACTIVITY })) {
                 ActivityScreen(pointId = pointId, onOpenBooking = openBooking)
             }
-            composable<EquipmentRoute> { EquipmentScreen(pointId = pointId, onOpenAsset = { navController.navigate(AssetRoute(it)) }) }
+            composable<EquipmentRoute> {
+                EquipmentScreen(
+                    pointId = pointId,
+                    onOpenAsset = { navController.navigate(AssetRoute(it)) },
+                    onScanAsset = { navController.navigate(AssetLookupRoute) },
+                )
+            }
+            composable<AssetLookupRoute> {
+                AssetLookupScreen(
+                    pointId = pointId,
+                    pointName = pointName,
+                    onBack = { navController.popBackStack() },
+                    onFound = { id -> navController.navigate(AssetRoute(id)) { popUpTo<AssetLookupRoute> { inclusive = true } } },
+                )
+            }
             composable<AssetRoute> {
                 AssetDetailScreen(pointId = pointId, onBack = { navController.popBackStack() }, onOpenBooking = openBooking)
             }
@@ -219,6 +309,7 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
                     onOpenSettlement = { navController.navigate(SettlementRoute) },
                     onOpenNotifications = { navController.navigate(NotificationsRoute) },
                     unreadNotifications = unread,
+                    inboxEnabled = inboxEnabled,
                     onOpenShowcase = if (InternalTools.enabled) ({ navController.navigate(ShowcaseRoute) }) else null,
                 )
             }

@@ -57,3 +57,34 @@ class ScanDebouncer(private val windowMs: Long = 2_500, private val clock: () ->
         return true
     }
 }
+
+/**
+ * Camera gate: ONE code per arming. The gate closes as soon as a code is accepted and stays closed while the caller is
+ * not [active] (request in flight, refusal on screen, manual entry open); it re-arms on the inactive → active edge and
+ * ignores the code that was just refused for [cooldownMs] after re-arming (the same QR may still be in front of the
+ * lens). Prevents a loop of POSTs with a rejected code — nothing is ever retried automatically.
+ */
+class ScanGate(private val cooldownMs: Long = 1_500, private val clock: () -> Long = System::currentTimeMillis) {
+    private var active = true
+    private var armed = true
+    private var lastCode: String? = null
+    private var rearmedAt = Long.MIN_VALUE / 2
+
+    @Synchronized
+    fun setActive(value: Boolean) {
+        if (value && !active) {
+            armed = true
+            rearmedAt = clock()
+        }
+        active = value
+    }
+
+    @Synchronized
+    fun accept(code: String): Boolean {
+        if (!active || !armed) return false
+        if (code == lastCode && clock() - rearmedAt < cooldownMs) return false
+        armed = false
+        lastCode = code
+        return true
+    }
+}

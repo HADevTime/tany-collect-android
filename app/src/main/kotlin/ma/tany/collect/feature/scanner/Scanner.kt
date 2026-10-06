@@ -8,6 +8,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
+import android.view.HapticFeedbackConstants
+import android.view.View
+import androidx.annotation.DrawableRes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -39,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,9 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -93,11 +95,23 @@ enum class CameraPermission { GRANTED, NOT_REQUESTED, DENIED, PERMANENTLY_DENIED
 private enum class ScanMode { CAMERA, MANUAL }
 
 /**
+ * A refused scan as the merchant sees it: title + message (localized from the server's structured code) and the
+ * recovery offered. [preferCamera] = the manual code is not the way out (too many wrong codes).
+ */
+data class ScanFailureUi(
+    val title: String,
+    val message: String,
+    @DrawableRes val icon: Int,
+    val preferCamera: Boolean = false,
+)
+
+/**
  * Scanner: an immersive dark screen (both themes) built for the counter. Camera permission requested IN CONTEXT
  * (rationale first, settings when permanently denied), live QR preview in a framed viewfinder with an optional torch,
  * and a manual fallback that is always one tap away — the customer's 6-digit code ([ScanTarget.BOOKING_QR]) or the
  * printed label code ([ScanTarget.ASSET_LABEL]). Inputs are OPAQUE ([ScanInput]); the caller sends them to the
- * server, which decides. [busy] / [message] reflect the caller's request (one at a time).
+ * server, which decides. While [busy] or a [failure] is shown, the camera accepts nothing (one code per arming);
+ * « Scanner à nouveau » ([onDismissFailure]) re-arms it.
  */
 @Composable
 fun ScannerScreen(
@@ -106,11 +120,14 @@ fun ScannerScreen(
     target: ScanTarget = ScanTarget.BOOKING_QR,
     onBack: (() -> Unit)? = null,
     busy: Boolean = false,
-    message: String? = null,
+    failure: ScanFailureUi? = null,
+    onDismissFailure: () -> Unit = {},
     hint: String? = null,
+    subHint: String? = null,
+    pointName: String? = null,
 ) {
     val context = LocalContext.current
-    val haptics = LocalHapticFeedback.current
+    val view = LocalView.current
     var permission by remember { mutableStateOf(context.cameraPermission(requestedBefore = false)) }
     var requested by rememberSaveable { mutableStateOf(false) }
     var captured by remember { mutableStateOf<ScanInput?>(null) }
@@ -118,6 +135,7 @@ fun ScannerScreen(
     var mode by rememberSaveable { mutableStateOf(ScanMode.CAMERA) }
     var torch by rememberSaveable { mutableStateOf(false) }
     var torchAvailable by remember { mutableStateOf(false) }
+    var cameraUnavailable by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         requested = true
         permission = context.cameraPermission(requestedBefore = true)
@@ -125,11 +143,13 @@ fun ScannerScreen(
     // Re-check when returning from system settings.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { permission = context.cameraPermission(requestedBefore = requested) }
     LightStatusBarIcons()
+    // Too many wrong codes: the QR is the way out.
+    LaunchedEffect(failure) { if (failure?.preferCamera == true) mode = ScanMode.CAMERA }
 
     val labelMode = target == ScanTarget.ASSET_LABEL
     val accept: (ScanInput) -> Unit = { input ->
-        if (!busy) {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (!busy && failure == null) {
+            view.tick()
             captured = input
             onInput(input)
         }
@@ -140,6 +160,7 @@ fun ScannerScreen(
         if (input != null) accept(input)
     }
     val colors = TanyTheme.colors
+    val cameraActive = mode == ScanMode.CAMERA && !busy && failure == null
 
     Column(
         Modifier
@@ -149,7 +170,8 @@ fun ScannerScreen(
         ScannerTopBar(
             title = title ?: stringResource(R.string.scan_title),
             onBack = onBack,
-            torchVisible = mode == ScanMode.CAMERA && permission == CameraPermission.GRANTED && torchAvailable,
+            pointName = pointName,
+            torchVisible = mode == ScanMode.CAMERA && permission == CameraPermission.GRANTED && torchAvailable && !cameraUnavailable,
             torch = torch,
             onTorch = { torch = !torch },
         )
@@ -162,13 +184,20 @@ fun ScannerScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                hint ?: stringResource(if (labelMode) R.string.op_scan_asset_hint else R.string.scan_hint_default),
-                style = TanyTheme.typography.body,
-                color = colors.onChromeMuted,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.widthIn(max = 420.dp),
-            )
+            Column(Modifier.widthIn(max = 420.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    hint ?: stringResource(if (labelMode) R.string.op_scan_asset_hint else R.string.scan_instruction),
+                    style = TanyTheme.typography.headline,
+                    color = colors.onChrome,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    subHint ?: stringResource(if (labelMode) R.string.scan_label_example else R.string.scan_hint_default),
+                    style = TanyTheme.typography.label,
+                    color = colors.onChromeMuted,
+                    textAlign = TextAlign.Center,
+                )
+            }
             TanySegmentedControl(
                 options = listOf(
                     TanySegment(ScanMode.CAMERA, stringResource(R.string.scan_mode_camera), DsR.drawable.ic_tany_scan),
@@ -183,6 +212,21 @@ fun ScannerScreen(
                 onChrome = true,
                 modifier = Modifier.widthIn(max = 420.dp),
             )
+            if (failure != null) {
+                ScanFailureCard(
+                    failure = failure,
+                    labelMode = labelMode,
+                    onRetry = {
+                        captured = null
+                        onDismissFailure()
+                    },
+                    onManual = {
+                        captured = null
+                        onDismissFailure()
+                        mode = ScanMode.MANUAL
+                    },
+                )
+            }
             when {
                 mode == ScanMode.MANUAL -> ManualEntry(
                     labelMode = labelMode,
@@ -193,10 +237,16 @@ fun ScannerScreen(
                     busy = busy,
                     onSubmit = submitManual,
                 )
+                permission == CameraPermission.GRANTED && cameraUnavailable -> CameraUnavailablePanel(onManual = { mode = ScanMode.MANUAL })
                 permission == CameraPermission.GRANTED -> Viewfinder(
                     busy = busy,
-                    torch = torch,
+                    active = cameraActive,
+                    torch = torch && cameraActive,
                     onTorchAvailable = { torchAvailable = it },
+                    onUnavailable = {
+                        cameraUnavailable = true
+                        mode = ScanMode.MANUAL
+                    },
                     onCode = { raw -> ScanInputs.fromCamera(raw)?.let(accept) },
                 )
                 else -> PermissionPanel(
@@ -207,22 +257,50 @@ fun ScannerScreen(
                     labelMode = labelMode,
                 )
             }
-            message?.let {
-                TanyNotice(message = it, tone = TanyTone.DANGER, modifier = Modifier.widthIn(max = 420.dp))
-            }
-            captured?.let { input ->
-                val shown = when (input) {
-                    is ScanInput.Qr -> input.payload.take(12) + "…"
-                    is ScanInput.ShortCode -> input.code
-                }
-                TanyStatusChip(stringResource(R.string.scan_captured, ltrIsolated(shown)), if (busy) TanyTone.INFO else TanyTone.NEUTRAL)
+            // Only a typed code is echoed back: a QR payload is an opaque token and is never displayed.
+            (captured as? ScanInput.ShortCode)?.takeIf { busy }?.let { input ->
+                TanyStatusChip(stringResource(R.string.scan_captured, ltrIsolated(input.code)), TanyTone.INFO)
             }
         }
     }
 }
 
+/** Refusal card (iOS « ScanFailureCard »): what happened, then « Scanner à nouveau » and the manual code. */
 @Composable
-private fun ScannerTopBar(title: String, onBack: (() -> Unit)?, torchVisible: Boolean, torch: Boolean, onTorch: () -> Unit) {
+private fun ScanFailureCard(failure: ScanFailureUi, labelMode: Boolean, onRetry: () -> Unit, onManual: () -> Unit) {
+    TanyCard(modifier = Modifier.widthIn(max = 420.dp), contentPadding = 18.dp) {
+        TanyNotice(title = failure.title, message = failure.message, tone = TanyTone.DANGER, icon = failure.icon)
+        TanyButton(stringResource(R.string.scan_again), onRetry, icon = DsR.drawable.ic_tany_scan)
+        if (!failure.preferCamera) {
+            TanyButton(
+                stringResource(if (labelMode) R.string.scan_type_label_instead else R.string.scan_type_code_instead),
+                onManual,
+                style = TanyButtonStyle.SECONDARY,
+                icon = DsR.drawable.ic_tany_keyboard,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CameraUnavailablePanel(onManual: () -> Unit) {
+    TanyCard(modifier = Modifier.widthIn(max = 420.dp), contentPadding = 20.dp) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TanyIllustration(DsR.drawable.ic_tany_camera, tone = TanyTone.WARNING, size = 80.dp)
+            Text(stringResource(R.string.scan_camera_unavailable_title), style = TanyTheme.typography.title, textAlign = TextAlign.Center)
+            Text(stringResource(R.string.scan_camera_unavailable_message), style = TanyTheme.typography.body, color = TanyTheme.colors.textMuted, textAlign = TextAlign.Center)
+        }
+        TanyButton(stringResource(R.string.scan_type_code_instead), onManual, icon = DsR.drawable.ic_tany_keyboard)
+    }
+}
+
+/** Light « tick » on detection (API-level safe haptic). */
+private fun View.tick() {
+    performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+}
+
+@Composable
+private fun ScannerTopBar(title: String, onBack: (() -> Unit)?, pointName: String?, torchVisible: Boolean, torch: Boolean, onTorch: () -> Unit) {
     val colors = TanyTheme.colors
     Row(
         modifier = Modifier
@@ -247,6 +325,20 @@ private fun ScannerTopBar(title: String, onBack: (() -> Unit)?, torchVisible: Bo
                 .padding(start = if (onBack == null) 16.dp else 4.dp)
                 .semantics { heading() },
         )
+        // Active point, always visible while scanning (a scan is scoped to this point).
+        pointName?.let {
+            Text(
+                it,
+                style = TanyTheme.typography.label,
+                color = colors.onChrome,
+                maxLines = 1,
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .clip(TanyTheme.radii.pill)
+                    .background(colors.chromeRaised)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
         if (torchVisible) {
             IconButton(onClick = onTorch) {
                 Icon(
@@ -261,7 +353,14 @@ private fun ScannerTopBar(title: String, onBack: (() -> Unit)?, torchVisible: Bo
 
 /** Live camera inside a rounded frame with viewfinder corners and a status pill. */
 @Composable
-private fun Viewfinder(busy: Boolean, torch: Boolean, onTorchAvailable: (Boolean) -> Unit, onCode: (String) -> Unit) {
+private fun Viewfinder(
+    busy: Boolean,
+    active: Boolean,
+    torch: Boolean,
+    onTorchAvailable: (Boolean) -> Unit,
+    onUnavailable: () -> Unit,
+    onCode: (String) -> Unit,
+) {
     val colors = TanyTheme.colors
     val frameColor = if (busy) colors.accent else colors.onChrome
     Box(
@@ -272,7 +371,14 @@ private fun Viewfinder(busy: Boolean, torch: Boolean, onTorchAvailable: (Boolean
             .clip(TanyTheme.radii.cardShape)
             .background(colors.chromeRaised),
     ) {
-        CameraQrPreview(onCode = onCode, modifier = Modifier.fillMaxSize(), torchOn = torch, onTorchAvailable = onTorchAvailable)
+        CameraQrPreview(
+            onCode = onCode,
+            modifier = Modifier.fillMaxSize(),
+            torchOn = torch,
+            onTorchAvailable = onTorchAvailable,
+            active = active,
+            onUnavailable = onUnavailable,
+        )
         Canvas(Modifier.fillMaxSize()) {
             val inset = size.minDimension * 0.16f
             val arm = size.minDimension * 0.12f
@@ -304,7 +410,13 @@ private fun Viewfinder(busy: Boolean, torch: Boolean, onTorchAvailable: (Boolean
         ) {
             if (busy) CircularProgressIndicator(Modifier.size(14.dp), color = colors.onChrome, strokeWidth = 2.dp)
             Text(
-                stringResource(if (busy) R.string.scan_status_verifying else R.string.scan_status_searching),
+                stringResource(
+                    when {
+                        busy -> R.string.scan_status_verifying
+                        active -> R.string.scan_status_searching
+                        else -> R.string.scan_status_paused
+                    },
+                ),
                 style = TanyTheme.typography.label,
                 color = colors.onChrome,
             )
@@ -390,6 +502,9 @@ private fun ManualEntry(labelMode: Boolean, code: String, onCode: (String) -> Un
             } else {
                 CodeCells(code = code, onCode = onCode, onDone = { if (ready && !busy) onSubmit() })
             }
+        }
+        if (!labelMode) {
+            TanyNotice(message = stringResource(R.string.scan_never_reference), tone = TanyTone.NEUTRAL, icon = DsR.drawable.ic_tany_shield)
         }
         TanyButton(
             stringResource(R.string.scan_fallback_submit),

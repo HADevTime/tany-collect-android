@@ -40,7 +40,7 @@ fun CollectOperationError.text(): String = when (this) {
         val start = windowStart?.let { runCatching { Instant.parse(it) }.getOrNull() }
         val end = windowEnd?.let { runCatching { Instant.parse(it) }.getOrNull() }
         if (start != null && end != null) {
-            stringResource(R.string.op_too_early_window, formatters.businessWindow(start, end))
+            stringResource(R.string.op_too_early_window, formatters.businessTime(start), formatters.businessWindow(start, end))
         } else {
             stringResource(R.string.op_too_early)
         }

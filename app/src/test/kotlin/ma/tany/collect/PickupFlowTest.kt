@@ -387,4 +387,29 @@ class PickupFlowTest {
         vm.poll("cp1")
         assertEquals(confirmed, (vm.state.value as LoadState.Loaded).value)
     }
+
+    @Test
+    fun photoReviewIsAUiAcknowledgementResetByEachNewPhoto() = runTest {
+        val ops = FakeOps().apply { result = ApiResult.Success(booking) }
+        val vm = detailVm(FakeCollect(ApiResult.Success(booking)), ops)
+        vm.acceptPhotos()
+        assertTrue(vm.pickup.value.photosAccepted)
+        assertTrue(ops.calls.isEmpty()) // no server call
+        vm.preparePhoto().writeBytes(byteArrayOf(3))
+        vm.onPhotoCaptured("cp1", success = true)
+        assertEquals(listOf("photo"), ops.calls)
+        org.junit.Assert.assertFalse(vm.pickup.value.photosAccepted) // the new photo is reviewed again
+    }
+
+    @Test
+    fun returnStatementSendsTheConditionRecordedWithTheReturnPhotos() = runTest {
+        val returning = booking.copy(
+            kind = OperationKind.RETURN,
+            returnInfo = booking.returnInfo!!.copy(condition = AssetCondition.ISSUE_REPORTED, photoCount = 1),
+        )
+        val ops = FakeOps().apply { result = ApiResult.Success(returning) }
+        val vm = detailVm(FakeCollect(ApiResult.Success(returning)), ops)
+        vm.declareReturn("cp1") {}
+        assertEquals(AssetCondition.ISSUE_REPORTED, ops.lastReturn?.condition)
+    }
 }

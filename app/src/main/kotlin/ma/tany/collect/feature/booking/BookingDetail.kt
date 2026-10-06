@@ -14,6 +14,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.stateDescription
 import ma.tany.collect.core.ui.dayLabel
 import ma.tany.core.designsystem.component.TanyCardStyle
@@ -830,7 +831,7 @@ private fun MoneyCard(booking: MerchantBookingDetail) {
                 Triple(R.string.money_to_collect, due, TanyTone.NEUTRAL)
             }
         booking.deposit?.merchantAction == MerchantDepositAction.HAND_BACK ->
-            Triple(R.string.deposit_amount_to_hand_back, booking.deposit?.toRefundAmount ?: MoneyAmount.ZERO, TanyTone.WARNING)
+            Triple(R.string.deposit_amount_to_hand_back_customer, booking.depositHandBack()?.handBack ?: MoneyAmount.ZERO, TanyTone.WARNING)
         booking.deposit?.heldAmount?.isZero == false -> Triple(R.string.money_deposit_held, booking.deposit!!.heldAmount, TanyTone.NEUTRAL)
         else -> Triple(R.string.booking_rental_amount, rental, TanyTone.NEUTRAL)
     }
@@ -841,6 +842,10 @@ private fun MoneyCard(booking: MerchantBookingDetail) {
         TanyDivider()
         TanyInfoRow(stringResource(R.string.booking_rental_amount)) { MoneyText(rental) }
         deposit?.takeIf { !it.isZero }?.let { TanyInfoRow(stringResource(R.string.booking_deposit_amount)) { MoneyText(it) } }
+        // Late Return Policy V1: the server's TANY retention, already subtracted from the amount to hand back.
+        booking.deposit?.latePenaltyAmount?.takeIf { !it.isZero }?.let {
+            TanyInfoRow(stringResource(R.string.deposit_retention_label)) { MoneyText(it) }
+        }
         booking.payment?.let {
             TanyInfoRow(stringResource(R.string.money_payment)) {
                 Text(stringResource(R.string.money_payment_cash), style = TanyTheme.typography.bodyStrong)
@@ -958,6 +963,10 @@ private fun CancelledCard(booking: MerchantBookingDetail) {
 /** Disputed deposit / TANY review: no action is possible from TANY Collect; open incidents are listed. */
 @Composable
 private fun InterventionCard(booking: MerchantBookingDetail) {
+    if (booking.depositAwaitingTanyDecision()) {
+        DepositPendingDecisionCard(booking)
+        return
+    }
     val disputed = booking.phase == MerchantPhase.DEPOSIT_DISPUTED
     TanyCard(accent = TanyTone.DANGER) {
         TanyNotice(
@@ -976,6 +985,32 @@ private fun InterventionCard(booking: MerchantBookingDetail) {
         Text(stringResource(R.string.intervention_informed), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
     }
 }
+
+/**
+ * Deposit awaiting a TANY decision without an open incident (e.g. return on a later business day): the physical return
+ * is recorded, NO amount is offered (the hand-back appears only once the server sets one), the merchant may leave.
+ */
+@Composable
+private fun DepositPendingDecisionCard(booking: MerchantBookingDetail) {
+    TanyCard(accent = TanyTone.WARNING, modifier = Modifier.testTag(DEPOSIT_PENDING_TAG)) {
+        if (booking.returnInfo?.merchantConfirmedAt != null || booking.returnInfo?.returnedAt != null) {
+            TanyStatusChip(stringResource(R.string.deposit_pending_return_recorded), TanyTone.SUCCESS, size = TanyChipSize.SMALL)
+        }
+        TanyNotice(
+            title = stringResource(R.string.deposit_pending_title),
+            message = stringResource(R.string.deposit_pending_message),
+            tone = TanyTone.WARNING,
+            icon = DsR.drawable.ic_tany_cash,
+        )
+        (booking.deposit?.amount ?: booking.payment?.depositAmount)?.let {
+            TanyInfoRow(stringResource(R.string.deposit_received_label)) { MoneyText(it) }
+        }
+        Text(stringResource(R.string.deposit_pending_note), style = TanyTheme.typography.caption, color = TanyTheme.colors.textMuted)
+    }
+}
+
+/** Test tag of the « Caution en attente de décision TANY » card. */
+internal const val DEPOSIT_PENDING_TAG = "deposit-pending-decision"
 
 /** Problem reported to TANY during a pickup (type + optional words) — sent once, never retried. */
 @OptIn(ExperimentalLayoutApi::class)

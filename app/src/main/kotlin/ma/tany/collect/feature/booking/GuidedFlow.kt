@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -391,24 +392,40 @@ private fun PhotoStep(
     }
 }
 
+/** Test tag of the secondary « Caution reçue / Retenue TANY » lines of the deposit step. */
+internal const val DEPOSIT_BREAKDOWN_TAG = "deposit-breakdown"
+
 /**
- * Deposit hand-back = the server's facts: amount (`deposit.toRefundAmount`), deferred-refund QR check (`refundPickup`).
+ * Deposit hand-back = the server's facts: amount (`deposit.refundableAmount`, else `toRefundAmount`), deferred-refund QR check (`refundPickup`).
  * The decision and the amount are TANY's; the customer alone confirms the amount received.
  */
 @Composable
 private fun DepositStep(booking: MerchantBookingDetail, ui: PickupUiState, actions: PickupActions) {
     val deposit = booking.deposit ?: return
+    val money = booking.depositHandBack() ?: return
     val busy = ui.busy != null
-    val amount = deposit.toRefundAmount
+    // « À remettre au client » = the server's amount for the current decision, sent back exactly (`expectedAmount`).
+    val amount = money.handBack
     val refundPickup = deposit.refundPickup
     StepHeader(stringResource(R.string.flow_deposit_title), stringResource(R.string.deposit_customer_closes))
+    // Money hierarchy: the amount to hand back dominates; deposit received and TANY retention stay secondary.
     TanyAmountPanel(
-        label = stringResource(R.string.deposit_amount_to_hand_back),
+        label = stringResource(R.string.deposit_amount_to_hand_back_customer),
         amount = amount,
         tone = TanyTone.WARNING,
         icon = DsR.drawable.ic_tany_cash,
-        caption = if (refundPickup?.partial == true) stringResource(R.string.deposit_partial) else stringResource(R.string.deposit_decided_by_tany),
+        caption = when {
+            money.isLatePenalty -> stringResource(R.string.deposit_late_retention_note)
+            refundPickup?.partial == true -> stringResource(R.string.deposit_partial)
+            else -> stringResource(R.string.deposit_decided_by_tany)
+        },
     )
+    money.received?.let { received ->
+        Column(Modifier.testTag(DEPOSIT_BREAKDOWN_TAG)) {
+            TanyInfoRow(stringResource(R.string.deposit_received_label)) { MoneyText(received) }
+            TanyInfoRow(stringResource(R.string.deposit_retention_label)) { MoneyText(money.retention) }
+        }
+    }
     // Deferred refund: the hand-back is offered once the SERVER recorded the customer's deposit QR (≤ 15 min).
     val qrMissing = ui.failed == PickupGesture.DEPOSIT_REFUND && ui.error == CollectOperationError.DepositRefundQrRequired
     val qrPending = refundPickup?.qrRequired == true && (refundPickup.verifiedAt == null || qrMissing)

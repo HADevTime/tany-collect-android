@@ -780,7 +780,7 @@
     <string name="flow_statement_message">Signalez un accessoire manquant ou un problème. Sinon, confirmez simplement la réception.</string>
     <string name="flow_deposit_title">Rendez la caution</string>
     <string name="flow_deposit_qr_message">Scannez d’abord le QR de caution affiché par le client.</string>
-    <string name="flow_deposit_cta">Remettre %1$s</string>
+    <string name="flow_deposit_cta">J’ai remis %1$s</string>
     <string name="flow_back_to_booking">Voir la réservation</string>
     <string name="success_return_expected">Retour prévu</string>
     <string name="stage_pickup_planned">Collecte prévue</string>
@@ -842,4 +842,15 @@
     <string name="home_no_next_message">Les prochaines collectes et retours apparaîtront ici.</string>
     <string name="home_collect_empty_other">Aucune autre collecte pour le moment.</string>
     <string name="home_return_empty_other">Aucun autre retour pour le moment.</string>
+    <!-- Late Return Policy V1 / deposit hand-back (server amounts only) -->
+    <string name="deposit_amount_to_hand_back_customer">À remettre au client</string>
+    <string name="deposit_late_retention_note">Retenue calculée par TANY suite au retard.</string>
+    <string name="deposit_received_label">Caution reçue</string>
+    <string name="deposit_retention_label">Retenue TANY</string>
+    <string name="deposit_pending_title">Caution en attente de décision TANY</string>
+    <string name="deposit_pending_message">Le montant à remettre au client sera confirmé par TANY.</string>
+    <string name="deposit_pending_note">Ne remettez aucun montant pour l’instant. Vous serez notifié de la décision.</string>
+    <string name="deposit_pending_return_recorded">Retour enregistré</string>
+    <string name="row_exception_deposit_retention">Caution à restituer · retenue TANY %1$s</string>
+    <string name="hero_return_was_due">Retour prévu à cette heure</string>
 </resources>

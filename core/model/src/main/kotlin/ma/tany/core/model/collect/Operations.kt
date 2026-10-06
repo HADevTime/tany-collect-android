@@ -71,6 +71,11 @@ data class Operation(
     /** FR prose — use [depositState] + [depositAction] + amounts. */
     val depositHeadline: String? = null,
     val depositState: DepositLedgerState,
+    /**
+     * Late Return Policy V1 (additive): TANY deduction already subtracted from [depositRefundAmount].
+     * Read-only, never entered or recomputed by the app; `null` = no late deduction (or policy OFF).
+     */
+    val depositLatePenaltyAmount: MoneyAmount? = null,
     val currency: String,
     val lateMinutes: Int? = null,
     @Serializable(with = InstantSerializer::class) val nextBookingAt: Instant? = null,
@@ -166,6 +171,7 @@ data class MerchantBookingDetail(
     val depositAction: MerchantDepositAction = MerchantDepositAction.NONE,
     val depositHeadline: String? = null,
     val depositState: DepositLedgerState,
+    val depositLatePenaltyAmount: MoneyAmount? = null,
     val currency: String,
     val lateMinutes: Int? = null,
     @Serializable(with = InstantSerializer::class) val nextBookingAt: Instant? = null,
@@ -276,7 +282,19 @@ data class MerchantDeposit(
     val currency: String,
     /** Deferred refund (flag): handing back requires a verified `DEPOSIT_REFUND` QR scan ≤ 15 min. */
     val refundPickup: MerchantRefundPickup? = null,
-)
+    /**
+     * Late Return Policy V1 (additive) — AUTHORITATIVE server amounts, never entered by the merchant:
+     * « Retenue TANY » carried by the current decision (`null` = none) and « À remettre au client ».
+     */
+    val latePenaltyAmount: MoneyAmount? = null,
+    val refundableAmount: MoneyAmount? = null,
+) {
+    /** The current decision carries a late-return deduction (server value > 0). */
+    val hasLatePenalty: Boolean get() = (latePenaltyAmount?.centimes ?: 0L) > 0L
+
+    /** A TANY decision is awaited: no amount may be handed back until the server sets one. */
+    val awaitingTanyDecision: Boolean get() = state.awaitsTanyDecision
+}
 
 @Serializable
 data class MerchantRefundPickup(

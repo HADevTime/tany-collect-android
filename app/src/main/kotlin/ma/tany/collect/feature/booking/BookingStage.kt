@@ -1,6 +1,7 @@
 package ma.tany.collect.feature.booking
 
 import ma.tany.core.model.collect.MerchantBookingDetail
+import ma.tany.core.model.collect.Operation
 import ma.tany.core.model.collect.MerchantDepositAction
 import ma.tany.core.model.collect.MerchantPhase
 import ma.tany.core.model.common.BookingStatus
@@ -131,3 +132,38 @@ fun ReturnStep.position(): Int = when (this) {
 }
 
 fun PickupStep.position(): Int = (ordinal + 1).coerceAtMost(PICKUP_STEP_COUNT)
+
+/**
+ * Deposit hand-back as the merchant sees it: the operational question is « how much do I give back? », so [handBack]
+ * dominates and [received] / [retention] are secondary. NO computation: every amount is the server's
+ * (`deposit.refundableAmount` / `toRefundAmount`, `deposit.amount`, `latePenaltyAmount` / `retainedAmount`).
+ */
+data class DepositHandBack(
+    val received: MoneyAmount?,
+    val retention: MoneyAmount,
+    val handBack: MoneyAmount,
+    /** The retention comes from the late return (short « suite au retard » explanation). */
+    val isLatePenalty: Boolean,
+)
+
+/** Null when the booking carries no deposit view. */
+fun MerchantBookingDetail.depositHandBack(): DepositHandBack? {
+    val deposit = deposit ?: return null
+    return DepositHandBack(
+        received = deposit.amount ?: payment?.depositAmount ?: depositAmount,
+        retention = deposit.latePenaltyAmount ?: deposit.retainedAmount,
+        handBack = deposit.refundableAmount ?: deposit.toRefundAmount,
+        isLatePenalty = deposit.hasLatePenalty,
+    )
+}
+
+/**
+ * A TANY decision on the deposit is awaited with no open incident (e.g. a return on a later business day): the return
+ * is recorded, no amount is offered until the server sets one, the merchant may leave the screen.
+ */
+fun MerchantBookingDetail.depositAwaitingTanyDecision(): Boolean =
+    phase == MerchantPhase.BLOCKED_PENDING_REVIEW && deposit?.awaitingTanyDecision == true && incidents.none { it.resolvedAt == null }
+
+/** Same server fact on a Today / Activity row (no incident list there: `pending_decision` only). */
+fun Operation.depositAwaitingTanyDecision(): Boolean =
+    phase == MerchantPhase.BLOCKED_PENDING_REVIEW && depositState == ma.tany.core.model.common.DepositLedgerState.PENDING_DECISION

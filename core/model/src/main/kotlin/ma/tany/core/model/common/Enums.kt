@@ -65,6 +65,9 @@ enum class DepositLedgerState(override val wire: String) : WireEnum {
     FORFEITED("FORFEITED"),
     UNKNOWN("");
 
+    /** The ledger waits for a TANY decision: nothing may be handed back until the server sets an amount. */
+    val awaitsTanyDecision: Boolean get() = this == UNDER_REVIEW || this == PENDING_DECISION
+
     object Serializer : WireEnumSerializer<DepositLedgerState>("DepositLedgerState", entries, UNKNOWN)
 }
 

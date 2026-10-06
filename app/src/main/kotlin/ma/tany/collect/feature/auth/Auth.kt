@@ -201,7 +201,7 @@ private fun secondsUntil(until: Long, now: () -> Long): Int {
     return left
 }
 
-private fun remaining(until: Long, now: Long): Int = if (until <= now) 0 else ((until - now + 999) / 1_000).toInt()
+internal fun remaining(until: Long, now: Long): Int = if (until <= now) 0 else ((until - now + 999) / 1_000).toInt()
 
 /** Auth canvas: brand mark, large title, explanation, then the form. */
 @Composable
@@ -265,7 +265,7 @@ private fun LtrField(value: String, onValueChange: (String) -> Unit, label: Stri
 fun PhoneScreen(onCodeSent: (CodeSent) -> Unit, sessionExpired: Boolean = false, viewModel: PhoneViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var phone by rememberSaveable { mutableStateOf("") }
-    LaunchedEffect(viewModel) { viewModel.codeSent.collect(onCodeSent) }
+    LaunchedEffect(viewModel) { viewModel.codeSent.collect { onCodeSent(it) } }
     AuthLayout(stringResource(R.string.auth_phone_title), stringResource(R.string.auth_phone_subtitle), onBack = null) {
         if (sessionExpired && state.error == null) {
             TanyNotice(message = stringResource(R.string.auth_session_expired), tone = TanyTone.INFO)

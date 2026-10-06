@@ -320,4 +320,71 @@ class PickupFlowTest {
         assertEquals(ma.tany.collect.feature.booking.PickupGesture.DEPOSIT_REFUND, vm.pickup.value.failed)
         assertEquals(2, collect.reads.size) // re-read: the merchant sees the new amount before any cash moves
     }
+
+    @Test
+    fun handoverSendsTheConditionRecordedWithThePickupPhotos() = runTest {
+        val withIssue = booking.copy(pickup = booking.pickup!!.copy(condition = AssetCondition.ISSUE_REPORTED, photoCount = 1))
+        val ops = FakeOps().apply { result = ApiResult.Success(withIssue) }
+        val vm = detailVm(FakeCollect(ApiResult.Success(withIssue)), ops)
+        vm.handover("cp1") {}
+        assertEquals(AssetCondition.ISSUE_REPORTED, ops.lastHandoverCondition)
+
+        // No condition recorded by the server ⇒ none invented.
+        val bare = FakeOps().apply { result = ApiResult.Success(booking) }
+        detailVm(FakeCollect(ApiResult.Success(booking)), bare).handover("cp1") {}
+        assertEquals(listOf("handover"), bare.calls)
+        assertNull(bare.lastHandoverCondition)
+    }
+
+    @Test
+    fun nudgeIsOneRequestPerTapAndHonoursTheServerDelay() = runTest {
+        val ops = FakeOps().apply {
+            nudgeResult = ApiResult.Success(ma.tany.core.model.collect.NudgeResponse(nudged = true, retryAfterSeconds = 60))
+        }
+        val vm = detailVm(FakeCollect(ApiResult.Success(booking)), ops)
+        var clock = 1_000L
+        vm.nudge("cp1") { clock }
+        assertEquals(ma.tany.collect.feature.booking.NudgeOutcome.SENT, vm.pickup.value.nudgeOutcome)
+        assertEquals(61_000L, vm.pickup.value.nudgeAvailableAt)
+        clock = 30_000L
+        vm.nudge("cp1") { clock } // still inside the server delay: nothing sent
+        assertEquals(listOf("nudge"), ops.calls)
+
+        clock = 61_000L
+        ops.nudgeResult = ApiResult.Success(ma.tany.core.model.collect.NudgeResponse(nudged = false, retryAfterSeconds = 20))
+        vm.nudge("cp1") { clock }
+        assertEquals(listOf("nudge", "nudge"), ops.calls)
+        assertEquals(ma.tany.collect.feature.booking.NudgeOutcome.ALREADY_SENT, vm.pickup.value.nudgeOutcome)
+    }
+
+    @Test
+    fun incidentIsReportedWithThePointAndATrimmedDescription() = runTest {
+        val ops = FakeOps().apply { result = ApiResult.Success(booking) }
+        val vm = detailVm(FakeCollect(ApiResult.Success(booking)), ops)
+        var done = 0
+        vm.reportIncident("cp1", IncidentType.DAMAGED, "   ", onDone = { done++ })
+        assertEquals(ma.tany.core.model.collect.IncidentBody("cp1", IncidentType.DAMAGED, null), ops.lastIncident)
+        assertTrue(vm.pickup.value.incidentReported)
+        assertEquals(1, done)
+    }
+
+    @Test
+    fun successCardOnlyWhenTheServerRecordsTheCustomerConfirmation() = runTest {
+        val collect = FakeCollect(ApiResult.Success(booking))
+        val vm = detailVm(collect, FakeOps())
+        vm.poll("cp1")
+        assertNull(vm.pickup.value.completed) // same server state: nothing to celebrate
+
+        val confirmed = booking.copy(pickup = booking.pickup!!.copy(customerConfirmedAt = java.time.Instant.parse("2026-10-05T09:30:00Z")))
+        collect.detail = ApiResult.Success(confirmed)
+        vm.poll("cp1")
+        assertEquals(ma.tany.collect.feature.booking.CompletedStep.PICKUP, vm.pickup.value.completed)
+        vm.dismissCompleted()
+        assertNull(vm.pickup.value.completed)
+
+        // A failed poll keeps the booking on screen.
+        collect.detail = ApiResult.Failure(ApiError.Network(IOException("offline")))
+        vm.poll("cp1")
+        assertEquals(confirmed, (vm.state.value as LoadState.Loaded).value)
+    }
 }

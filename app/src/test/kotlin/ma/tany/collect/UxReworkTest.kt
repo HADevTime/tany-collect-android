@@ -144,6 +144,11 @@ class UxReworkTest {
         assertEquals(ret.returnDeadline, ret.rowTime().start)
         assertNull(ret.rowTime().end)
         assertNull("no cash at a plain return", ret.rowMoney())
+        // Real capture: this return row still carries the PICKUP's `completedAt` — the card shows the return deadline.
+        assertTrue(ret.completedAt != null)
+        // A pickup done today (« Terminées aujourd'hui ») shows its completion time.
+        val donePickup = pickup.copy(phase = MerchantPhase.WITH_CUSTOMER, completedAt = t0)
+        assertEquals(t0, donePickup.rowTime().start)
         val deposit = op(MerchantPhase.DEPOSIT_TO_REFUND, t0).copy(depositRefundAmount = MoneyAmount.ofMajor(300))
         assertEquals(MoneyAmount.ofMajor(300), deposit.rowMoney()?.amount)
         // The full product name is kept in the model (the card wraps it, never truncates the data).

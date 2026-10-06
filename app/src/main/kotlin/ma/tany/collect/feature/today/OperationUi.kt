@@ -203,6 +203,18 @@ fun Operation.rowMoney(): RowMoney? = when (phase) {
     else -> null
 }
 
+/** Pickup phases (the pickup itself is not done yet). */
+private val PICKUP_PHASES = setOf(
+    MerchantPhase.PICKUP_UPCOMING, MerchantPhase.PICKUP_READY, MerchantPhase.PICKUP_IN_PROGRESS, MerchantPhase.PICKUP_AWAITING_CUSTOMER, MerchantPhase.NO_SHOW,
+)
+
+/**
+ * `completedAt` belongs to the operation of this row's kind only once it is over: a pickup past the pickup phases, or a
+ * closed booking. (A `return_due` row may still carry the earlier pickup's `completedAt` — real backend capture.)
+ */
+fun Operation.isDoneForItsKind(): Boolean = phase.ui().section == OperationSection.OTHER ||
+    (kind == OperationKind.PICKUP && phase !in PICKUP_PHASES)
+
 /**
  * The time a card puts forward (server instants): the pickup window, the return deadline, the waiting start, or the
  * completion time. [end] null = a single time.
@@ -210,7 +222,7 @@ fun Operation.rowMoney(): RowMoney? = when (phase) {
 data class RowTime(val start: Instant, val end: Instant?, @StringRes val prefix: Int?)
 
 fun Operation.rowTime(): RowTime = when {
-    completedAt != null -> RowTime(completedAt!!, null, null)
+    completedAt != null && isDoneForItsKind() -> RowTime(completedAt!!, null, null)
     phase.ui().section == OperationSection.AWAITING_CUSTOMER -> RowTime(waitingSince ?: scheduledAt, null, R.string.row_time_since)
     kind == OperationKind.RETURN -> RowTime(returnDeadline, null, R.string.row_time_before)
     else -> RowTime(pickupWindowStart, pickupWindowEnd, null)

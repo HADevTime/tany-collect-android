@@ -1,10 +1,13 @@
 package ma.tany.collect.feature.booking
 
+import androidx.annotation.StringRes
+import ma.tany.collect.R
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.Operation
 import ma.tany.core.model.collect.MerchantDepositAction
 import ma.tany.core.model.collect.MerchantPhase
 import ma.tany.core.model.common.BookingStatus
+import ma.tany.core.model.common.LatePenaltyReasonCode
 import ma.tany.core.model.common.MoneyAmount
 import ma.tany.core.model.common.PaymentStatus
 
@@ -144,7 +147,17 @@ data class DepositHandBack(
     val handBack: MoneyAmount,
     /** The retention comes from the late return (short « suite au retard » explanation). */
     val isLatePenalty: Boolean,
+    /** Server's merchant-safe reason (null / UNKNOWN ⇒ generic copy). */
+    val reasonCode: LatePenaltyReasonCode? = null,
 )
+
+/** Controlled merchant copy of a late retention reason; absent or unknown ⇒ the generic line. */
+@StringRes
+fun LatePenaltyReasonCode?.explanationRes(): Int = when (this) {
+    LatePenaltyReasonCode.NEXT_BOOKING_DELAYED -> R.string.deposit_late_reason_next_delayed
+    LatePenaltyReasonCode.NEXT_BOOKING_LOST -> R.string.deposit_late_reason_next_lost
+    else -> R.string.deposit_late_retention_note
+}
 
 /** Null when the booking carries no deposit view. */
 fun MerchantBookingDetail.depositHandBack(): DepositHandBack? {
@@ -154,6 +167,7 @@ fun MerchantBookingDetail.depositHandBack(): DepositHandBack? {
         retention = deposit.latePenaltyAmount ?: deposit.retainedAmount,
         handBack = deposit.refundableAmount ?: deposit.toRefundAmount,
         isLatePenalty = deposit.hasLatePenalty,
+        reasonCode = deposit.latePenaltyReasonCode ?: depositLatePenaltyReasonCode,
     )
 }
 

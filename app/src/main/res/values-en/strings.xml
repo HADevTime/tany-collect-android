@@ -840,4 +840,7 @@
     <string name="deposit_pending_return_recorded">Return recorded</string>
     <string name="row_exception_deposit_retention">Deposit to hand back · TANY deduction %1$s</string>
     <string name="hero_return_was_due">Return was due at this time</string>
+    <string name="deposit_late_reason_next_delayed">The late return disrupted the next booking.</string>
+    <string name="deposit_late_reason_next_lost">The item was not returned in time for the next booking.</string>
+    <string name="row_exception_deposit_returned">Deposit handed back · %1$s</string>
 </resources>

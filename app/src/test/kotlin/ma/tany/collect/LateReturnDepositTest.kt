@@ -6,6 +6,7 @@ import ma.tany.collect.feature.booking.ReturnStep
 import ma.tany.collect.feature.booking.depositAwaitingTanyDecision
 import ma.tany.collect.feature.booking.depositHandBack
 import ma.tany.collect.feature.booking.detailMode
+import ma.tany.collect.feature.booking.explanationRes
 import ma.tany.collect.feature.booking.returnStep
 import ma.tany.collect.feature.booking.stage
 import ma.tany.collect.feature.today.HomeSection
@@ -22,6 +23,7 @@ import ma.tany.core.model.common.ApiErrorCode
 import ma.tany.core.model.common.BookingStatus
 import ma.tany.core.model.common.DepositLedgerState
 import ma.tany.core.model.common.DepositStatus
+import ma.tany.core.model.common.LatePenaltyReasonCode
 import ma.tany.core.model.common.MoneyAmount
 import ma.tany.core.model.common.TanyJson
 import org.junit.Assert.assertEquals
@@ -227,6 +229,38 @@ class LateReturnDepositTest {
         assertEquals(dh(255), done.deposit?.refundedAmount)
     }
 
+    // ——— Merchant-safe reason + refunded amount (contract § 9) ———
+
+    @Test
+    fun merchantSafeReasonMapsToControlledCopyWithGenericFallback() {
+        val late = handBack(toRefund = 255, retained = 45, latePenalty = 45)
+        fun reasoned(code: LatePenaltyReasonCode?) = late.copy(deposit = late.deposit!!.copy(latePenaltyReasonCode = code)).depositHandBack()!!.reasonCode
+        assertEquals(R.string.deposit_late_retention_note, reasoned(LatePenaltyReasonCode.LATE_RETURN).explanationRes())
+        assertEquals(R.string.deposit_late_reason_next_delayed, reasoned(LatePenaltyReasonCode.NEXT_BOOKING_DELAYED).explanationRes())
+        assertEquals(R.string.deposit_late_reason_next_lost, reasoned(LatePenaltyReasonCode.NEXT_BOOKING_LOST).explanationRes())
+        assertEquals(R.string.deposit_late_retention_note, reasoned(null).explanationRes())
+        assertEquals(R.string.deposit_late_retention_note, reasoned(LatePenaltyReasonCode.UNKNOWN).explanationRes())
+        // Wire decoding: known, unknown and absent values.
+        val json = fixture("deposit_refund_booking")
+        fun decode(extra: String) = TanyJson.decodeFromString<MerchantBookingResponse>(
+            json.replace("\"retainedAmount\": 90,", "\"retainedAmount\": 90, $extra"),
+        ).booking.deposit?.latePenaltyReasonCode
+        assertEquals(LatePenaltyReasonCode.NEXT_BOOKING_LOST, decode("\"latePenaltyReasonCode\": \"NEXT_BOOKING_LOST\","))
+        assertEquals(LatePenaltyReasonCode.UNKNOWN, decode("\"latePenaltyReasonCode\": \"SOMETHING_NEW\","))
+        assertNull(decode("\"latePenaltyReasonCode\": null,"))
+        assertNull(real.deposit?.latePenaltyReasonCode)
+    }
+
+    @Test
+    fun completedOperationsCarryTheAuthoritativeRefundedAmount() {
+        val json = fixture("today").replaceFirst("\"depositRefundAmount\":", "\"depositRefundedAmount\": 255, \"depositLatePenaltyReasonCode\": \"LATE_RETURN\", \"depositRefundAmount\":")
+        val first = TanyJson.decodeFromString<TodayResponse>(json).operations.first()
+        assertEquals(dh(255), first.depositRefundedAmount)
+        assertEquals(LatePenaltyReasonCode.LATE_RETURN, first.depositLatePenaltyReasonCode)
+        // Real capture without the additive fields: nothing is invented.
+        assertNull(today.operations.first().depositRefundedAmount)
+    }
+
     // ——— Localization FR / EN / AR ———
 
     @Test
@@ -235,6 +269,7 @@ class LateReturnDepositTest {
             "deposit_amount_to_hand_back_customer", "deposit_late_retention_note", "deposit_received_label", "deposit_retention_label",
             "deposit_pending_title", "deposit_pending_message", "deposit_pending_note", "deposit_pending_return_recorded",
             "row_exception_deposit_retention", "hero_return_was_due", "flow_deposit_cta",
+            "deposit_late_reason_next_delayed", "deposit_late_reason_next_lost", "row_exception_deposit_returned",
         )
         val fr = res("values")
         val en = res("values-en")

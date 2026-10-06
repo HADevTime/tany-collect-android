@@ -383,6 +383,9 @@ fun Operation.exceptionLine(): Pair<String, TanyTone>? = when (phase) {
         stringResource(R.string.row_exception_review) to TanyTone.DANGER
     }
     MerchantPhase.DEPOSIT_DISPUTED -> stringResource(R.string.row_exception_disputed) to TanyTone.DANGER
+    // Authoritative amount handed back (server ledger, additive) — never « deposit − retention » in the app.
+    MerchantPhase.COMPLETED -> depositRefundedAmount?.takeIf { !it.isZero }
+        ?.let { stringResource(R.string.row_exception_deposit_returned, LocalTanyFormatters.current.money(it)) to TanyTone.SUCCESS }
     in COUNTDOWN_PHASES -> {
         // Ticks every 15 s; no network call. Below one minute the line stays « less than 1 min » until the server phase
         // says the return is late.

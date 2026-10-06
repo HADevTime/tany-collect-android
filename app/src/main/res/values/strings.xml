@@ -853,4 +853,7 @@
     <string name="deposit_pending_return_recorded">Retour enregistré</string>
     <string name="row_exception_deposit_retention">Caution à restituer · retenue TANY %1$s</string>
     <string name="hero_return_was_due">Retour prévu à cette heure</string>
+    <string name="deposit_late_reason_next_delayed">Le retard a perturbé la réservation suivante.</string>
+    <string name="deposit_late_reason_next_lost">L’objet n’a pas été rendu à temps pour la réservation suivante.</string>
+    <string name="row_exception_deposit_returned">Caution remise · %1$s</string>
 </resources>

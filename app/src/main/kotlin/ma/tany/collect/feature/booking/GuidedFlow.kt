@@ -415,7 +415,7 @@ private fun DepositStep(booking: MerchantBookingDetail, ui: PickupUiState, actio
         tone = TanyTone.WARNING,
         icon = DsR.drawable.ic_tany_cash,
         caption = when {
-            money.isLatePenalty -> stringResource(R.string.deposit_late_retention_note)
+            money.isLatePenalty -> stringResource(money.reasonCode.explanationRes())
             refundPickup?.partial == true -> stringResource(R.string.deposit_partial)
             else -> stringResource(R.string.deposit_decided_by_tany)
         },

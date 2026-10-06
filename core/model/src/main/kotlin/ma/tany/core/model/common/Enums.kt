@@ -71,6 +71,20 @@ enum class DepositLedgerState(override val wire: String) : WireEnum {
     object Serializer : WireEnumSerializer<DepositLedgerState>("DepositLedgerState", entries, UNKNOWN)
 }
 
+/**
+ * Merchant-safe reason of a late-return TANY retention (tany-backend `MerchantLatePenaltyReasonCode`). Operational only —
+ * never a score, Trusted points, policy weights or Admin notes. Unknown value ⇒ generic copy.
+ */
+@Serializable(with = LatePenaltyReasonCode.Serializer::class)
+enum class LatePenaltyReasonCode(override val wire: String) : WireEnum {
+    LATE_RETURN("LATE_RETURN"),
+    NEXT_BOOKING_DELAYED("NEXT_BOOKING_DELAYED"),
+    NEXT_BOOKING_LOST("NEXT_BOOKING_LOST"),
+    UNKNOWN("");
+
+    object Serializer : WireEnumSerializer<LatePenaltyReasonCode>("LatePenaltyReasonCode", entries, UNKNOWN)
+}
+
 /** Stored deposit projection (`depositStatus`, Collect `deposit.status`). */
 @Serializable(with = DepositStatus.Serializer::class)
 enum class DepositStatus(override val wire: String) : WireEnum {

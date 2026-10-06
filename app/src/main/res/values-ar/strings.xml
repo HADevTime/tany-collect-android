@@ -872,4 +872,7 @@
     <string name="deposit_pending_return_recorded">تم تسجيل الإرجاع</string>
     <string name="row_exception_deposit_retention">مبلغ الضمان الواجب ردّه · اقتطاع TANY %1$s</string>
     <string name="hero_return_was_due">كان موعد الإرجاع في هذه الساعة</string>
+    <string name="deposit_late_reason_next_delayed">أثّر التأخر في الإرجاع على الحجز التالي.</string>
+    <string name="deposit_late_reason_next_lost">لم يُرجَع الغرض في الوقت المناسب للحجز التالي.</string>
+    <string name="row_exception_deposit_returned">رُدّ مبلغ الضمان · %1$s</string>
 </resources>

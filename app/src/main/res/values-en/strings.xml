@@ -768,7 +768,7 @@
     <string name="flow_statement_message">Report a missing accessory or a problem. Otherwise, simply confirm receipt.</string>
     <string name="flow_deposit_title">Hand back the deposit</string>
     <string name="flow_deposit_qr_message">First scan the deposit QR shown by the customer.</string>
-    <string name="flow_deposit_cta">Hand back %1$s</string>
+    <string name="flow_deposit_cta">I handed back %1$s</string>
     <string name="flow_back_to_booking">View the booking</string>
     <string name="success_return_expected">Return expected</string>
     <string name="stage_pickup_planned">Pickup scheduled</string>
@@ -829,4 +829,18 @@
     <string name="home_no_next_message">The next pickups and returns will appear here.</string>
     <string name="home_collect_empty_other">No other pickup for now.</string>
     <string name="home_return_empty_other">No other return for now.</string>
+    <!-- Late Return Policy V1 / deposit hand-back (server amounts only) -->
+    <string name="deposit_amount_to_hand_back_customer">To hand back to the customer</string>
+    <string name="deposit_late_retention_note">Deduction calculated by TANY following the late return.</string>
+    <string name="deposit_received_label">Deposit received</string>
+    <string name="deposit_retention_label">TANY deduction</string>
+    <string name="deposit_pending_title">Deposit awaiting TANY decision</string>
+    <string name="deposit_pending_message">TANY will confirm the amount to hand back to the customer.</string>
+    <string name="deposit_pending_note">Do not hand back any amount for now. You will be notified of the decision.</string>
+    <string name="deposit_pending_return_recorded">Return recorded</string>
+    <string name="row_exception_deposit_retention">Deposit to hand back · TANY deduction %1$s</string>
+    <string name="hero_return_was_due">Return was due at this time</string>
+    <string name="deposit_late_reason_next_delayed">The late return disrupted the next booking.</string>
+    <string name="deposit_late_reason_next_lost">The item was not returned in time for the next booking.</string>
+    <string name="row_exception_deposit_returned">Deposit handed back · %1$s</string>
 </resources>

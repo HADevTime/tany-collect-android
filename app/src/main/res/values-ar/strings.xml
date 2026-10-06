@@ -796,7 +796,7 @@
     <string name="flow_statement_message">أبلغ عن ملحق ناقص أو مشكلة. وإلا فقط أكّد الاستلام.</string>
     <string name="flow_deposit_title">أعِد الوديعة</string>
     <string name="flow_deposit_qr_message">امسح أولًا رمز QR الخاص بالوديعة الذي يعرضه الزبون.</string>
-    <string name="flow_deposit_cta">إعادة %1$s</string>
+    <string name="flow_deposit_cta">رددتُ %1$s</string>
     <string name="flow_back_to_booking">عرض الحجز</string>
     <string name="success_return_expected">الإرجاع المتوقع</string>
     <string name="stage_pickup_planned">استلام مبرمج</string>
@@ -861,4 +861,18 @@
     <string name="home_no_next_message">ستظهر هنا عمليات الاستلام والإرجاع القادمة.</string>
     <string name="home_collect_empty_other">لا يوجد استلام آخر حاليًا.</string>
     <string name="home_return_empty_other">لا يوجد إرجاع آخر حاليًا.</string>
+    <!-- Late Return Policy V1 / deposit hand-back (server amounts only) -->
+    <string name="deposit_amount_to_hand_back_customer">المبلغ الواجب ردّه إلى الزبون</string>
+    <string name="deposit_late_retention_note">اقتطاع حسبته TANY بسبب التأخر في الإرجاع.</string>
+    <string name="deposit_received_label">تم استلام مبلغ الضمان</string>
+    <string name="deposit_retention_label">المبلغ المقتطع من طرف TANY</string>
+    <string name="deposit_pending_title">مبلغ الضمان في انتظار قرار TANY</string>
+    <string name="deposit_pending_message">ستؤكد TANY المبلغ الواجب ردّه إلى الزبون.</string>
+    <string name="deposit_pending_note">لا تردّ أي مبلغ في الوقت الحالي. سيتم إشعارك بالقرار.</string>
+    <string name="deposit_pending_return_recorded">تم تسجيل الإرجاع</string>
+    <string name="row_exception_deposit_retention">مبلغ الضمان الواجب ردّه · اقتطاع TANY %1$s</string>
+    <string name="hero_return_was_due">كان موعد الإرجاع في هذه الساعة</string>
+    <string name="deposit_late_reason_next_delayed">أثّر التأخر في الإرجاع على الحجز التالي.</string>
+    <string name="deposit_late_reason_next_lost">لم يُرجَع الغرض في الوقت المناسب للحجز التالي.</string>
+    <string name="row_exception_deposit_returned">رُدّ مبلغ الضمان · %1$s</string>
 </resources>

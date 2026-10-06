@@ -217,6 +217,8 @@ fun NextOperationHero(operation: Operation, onOpen: () -> Unit, onStart: () -> U
             }
             val secondary = when {
                 time.end != null -> stringResource(R.string.hero_window, ltrIsolated(formatters.businessTimeRange(time.start, time.end)))
+                // Late: the big time is the SERVER deadline already passed — factual, never « before this time ».
+                late -> stringResource(R.string.hero_return_was_due)
                 operation.kind == OperationKind.RETURN && operation.phase.ui().section != OperationSection.AWAITING_CUSTOMER ->
                     stringResource(R.string.hero_return_before)
                 else -> null

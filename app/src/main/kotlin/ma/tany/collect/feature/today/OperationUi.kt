@@ -30,6 +30,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import ma.tany.collect.R
+import ma.tany.collect.feature.booking.depositAwaitingTanyDecision
 import ma.tany.core.designsystem.R as DsR
 import ma.tany.core.designsystem.component.LocalTanyFormatters
 import ma.tany.core.designsystem.component.MoneyText
@@ -124,6 +125,15 @@ fun MerchantPhase.ui(): PhaseUi = when (this) {
     MerchantPhase.CANCELLED ->
         PhaseUi(R.string.phase_cancelled, TanyTone.NEUTRAL, OperationSection.OTHER, R.string.phase_desc_cancelled, R.string.phase_short_cancelled)
     MerchantPhase.UNKNOWN -> PhaseUi(R.string.phase_unknown, TanyTone.NEUTRAL, OperationSection.OTHER, R.string.phase_desc_unknown, R.string.phase_short_unknown)
+}
+
+/**
+ * Row presentation of an operation: its [MerchantPhase.ui], except a deposit awaiting a TANY decision (server ledger
+ * `PENDING_DECISION`) which reads « En attente » (warning), not « Incident » — nothing to hand back yet.
+ */
+fun Operation.phaseUi(): PhaseUi {
+    val base = phase.ui()
+    return if (depositAwaitingTanyDecision()) base.copy(tone = TanyTone.WARNING, short = R.string.phase_short_pending) else base
 }
 
 /** Sections always listed on Today, even empty (iOS: « À collecter » / « À retourner » with a reassuring line). */
@@ -363,9 +373,19 @@ fun Operation.exceptionLine(): Pair<String, TanyTone>? = when (phase) {
         }
         text to (if (customerConfirmationOverdue) TanyTone.DANGER else TanyTone.WARNING)
     }
-    MerchantPhase.DEPOSIT_TO_REFUND -> stringResource(R.string.row_exception_deposit) to TanyTone.WARNING
-    MerchantPhase.BLOCKED_PENDING_REVIEW -> stringResource(R.string.row_exception_review) to TanyTone.DANGER
+    // Late Return Policy V1: the TANY retention is the server's, already subtracted from the amount to hand back.
+    MerchantPhase.DEPOSIT_TO_REFUND -> depositLatePenaltyAmount?.takeIf { !it.isZero }
+        ?.let { stringResource(R.string.row_exception_deposit_retention, LocalTanyFormatters.current.money(it)) to TanyTone.WARNING }
+        ?: (stringResource(R.string.row_exception_deposit) to TanyTone.WARNING)
+    MerchantPhase.BLOCKED_PENDING_REVIEW -> if (depositAwaitingTanyDecision()) {
+        stringResource(R.string.deposit_pending_title) to TanyTone.WARNING
+    } else {
+        stringResource(R.string.row_exception_review) to TanyTone.DANGER
+    }
     MerchantPhase.DEPOSIT_DISPUTED -> stringResource(R.string.row_exception_disputed) to TanyTone.DANGER
+    // Authoritative amount handed back (server ledger, additive) — never « deposit − retention » in the app.
+    MerchantPhase.COMPLETED -> depositRefundedAmount?.takeIf { !it.isZero }
+        ?.let { stringResource(R.string.row_exception_deposit_returned, LocalTanyFormatters.current.money(it)) to TanyTone.SUCCESS }
     in COUNTDOWN_PHASES -> {
         // Ticks every 15 s; no network call. Below one minute the line stays « less than 1 min » until the server phase
         // says the return is late.
@@ -390,7 +410,7 @@ fun Operation.exceptionLine(): Pair<String, TanyTone>? = when (phase) {
 fun OperationRowContent(operation: Operation, endpoint: ApiEndpoint, modifier: Modifier = Modifier, showDay: Boolean = false) {
     val formatters = LocalTanyFormatters.current
     val colors = TanyTheme.colors
-    val phase = operation.phase.ui()
+    val phase = operation.phaseUi()
     val period = operation.effectiveUsagePeriod()
     val time = operation.rowTime()
     val timeText = buildString {
@@ -469,7 +489,7 @@ fun OperationRowContent(operation: Operation, endpoint: ApiEndpoint, modifier: M
 @Composable
 fun Operation.spokenSummary(): String {
     val formatters = LocalTanyFormatters.current
-    val phase = phase.ui()
+    val phase = phaseUi()
     val parts = listOfNotNull(
         stringResource(kind.label()),
         reference,
@@ -486,7 +506,7 @@ fun Operation.spokenSummary(): String {
 /** Card wrapper of [OperationRowContent] (Today). Danger sections get the leading status bar. */
 @Composable
 fun OperationCard(operation: Operation, endpoint: ApiEndpoint, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val phase = operation.phase.ui()
+    val phase = operation.phaseUi()
     val summary = operation.spokenSummary()
     val openLabel = stringResource(R.string.operation_open)
     TanyCard(

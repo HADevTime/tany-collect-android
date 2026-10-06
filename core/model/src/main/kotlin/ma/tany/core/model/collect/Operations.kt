@@ -13,6 +13,7 @@ import ma.tany.core.model.common.DepositStatus
 import ma.tany.core.model.common.IncidentStatus
 import ma.tany.core.model.common.IncidentType
 import ma.tany.core.model.common.InstantSerializer
+import ma.tany.core.model.common.LatePenaltyReasonCode
 import ma.tany.core.model.common.MoneyAmount
 import ma.tany.core.model.common.PhotoType
 import ma.tany.core.model.common.UsagePeriod
@@ -71,6 +72,15 @@ data class Operation(
     /** FR prose — use [depositState] + [depositAction] + amounts. */
     val depositHeadline: String? = null,
     val depositState: DepositLedgerState,
+    /**
+     * Late Return Policy V1 (additive): TANY deduction already subtracted from [depositRefundAmount].
+     * Read-only, never entered or recomputed by the app; `null` = no late deduction (or policy OFF).
+     */
+    val depositLatePenaltyAmount: MoneyAmount? = null,
+    /** Merchant-safe reason of that retention (additive); `null` = none. */
+    val depositLatePenaltyReasonCode: LatePenaltyReasonCode? = null,
+    /** AUTHORITATIVE amount already handed back to the customer (ledger, additive) — « Caution remise · X »; never recomputed. */
+    val depositRefundedAmount: MoneyAmount? = null,
     val currency: String,
     val lateMinutes: Int? = null,
     @Serializable(with = InstantSerializer::class) val nextBookingAt: Instant? = null,
@@ -166,6 +176,11 @@ data class MerchantBookingDetail(
     val depositAction: MerchantDepositAction = MerchantDepositAction.NONE,
     val depositHeadline: String? = null,
     val depositState: DepositLedgerState,
+    val depositLatePenaltyAmount: MoneyAmount? = null,
+    /** Merchant-safe reason of that retention (additive); `null` = none. */
+    val depositLatePenaltyReasonCode: LatePenaltyReasonCode? = null,
+    /** AUTHORITATIVE amount already handed back to the customer (ledger, additive) — « Caution remise · X »; never recomputed. */
+    val depositRefundedAmount: MoneyAmount? = null,
     val currency: String,
     val lateMinutes: Int? = null,
     @Serializable(with = InstantSerializer::class) val nextBookingAt: Instant? = null,
@@ -276,7 +291,21 @@ data class MerchantDeposit(
     val currency: String,
     /** Deferred refund (flag): handing back requires a verified `DEPOSIT_REFUND` QR scan ≤ 15 min. */
     val refundPickup: MerchantRefundPickup? = null,
-)
+    /**
+     * Late Return Policy V1 (additive) — AUTHORITATIVE server amounts, never entered by the merchant:
+     * « Retenue TANY » carried by the current decision (`null` = none) and « À remettre au client ».
+     */
+    val latePenaltyAmount: MoneyAmount? = null,
+    val refundableAmount: MoneyAmount? = null,
+    /** Merchant-safe reason of the retention (additive): drives controlled copy, generic fallback when absent / unknown. */
+    val latePenaltyReasonCode: LatePenaltyReasonCode? = null,
+) {
+    /** The current decision carries a late-return deduction (server value > 0). */
+    val hasLatePenalty: Boolean get() = (latePenaltyAmount?.centimes ?: 0L) > 0L
+
+    /** A TANY decision is awaited: no amount may be handed back until the server sets one. */
+    val awaitingTanyDecision: Boolean get() = state.awaitsTanyDecision
+}
 
 @Serializable
 data class MerchantRefundPickup(

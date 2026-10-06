@@ -65,7 +65,24 @@ enum class DepositLedgerState(override val wire: String) : WireEnum {
     FORFEITED("FORFEITED"),
     UNKNOWN("");
 
+    /** The ledger waits for a TANY decision: nothing may be handed back until the server sets an amount. */
+    val awaitsTanyDecision: Boolean get() = this == UNDER_REVIEW || this == PENDING_DECISION
+
     object Serializer : WireEnumSerializer<DepositLedgerState>("DepositLedgerState", entries, UNKNOWN)
+}
+
+/**
+ * Merchant-safe reason of a late-return TANY retention (tany-backend `MerchantLatePenaltyReasonCode`). Operational only —
+ * never a score, Trusted points, policy weights or Admin notes. Unknown value ⇒ generic copy.
+ */
+@Serializable(with = LatePenaltyReasonCode.Serializer::class)
+enum class LatePenaltyReasonCode(override val wire: String) : WireEnum {
+    LATE_RETURN("LATE_RETURN"),
+    NEXT_BOOKING_DELAYED("NEXT_BOOKING_DELAYED"),
+    NEXT_BOOKING_LOST("NEXT_BOOKING_LOST"),
+    UNKNOWN("");
+
+    object Serializer : WireEnumSerializer<LatePenaltyReasonCode>("LatePenaltyReasonCode", entries, UNKNOWN)
 }
 
 /** Stored deposit projection (`depositStatus`, Collect `deposit.status`). */

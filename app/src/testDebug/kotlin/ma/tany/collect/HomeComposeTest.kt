@@ -35,6 +35,8 @@ import java.io.File
 
 /** Home parity with TANY Collect iOS: 2 × 2 stat cards and the « Prochaine opération » hero (Compose, Robolectric). */
 @RunWith(AndroidJUnit4::class)
+// French (app default) unless a test sets its own language; Robolectric's default locale is en-US.
+@Config(qualifiers = "fr")
 class HomeComposeTest {
     @get:Rule
     val compose = createComposeRule()

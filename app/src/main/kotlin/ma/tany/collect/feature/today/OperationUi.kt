@@ -2,31 +2,43 @@ package ma.tany.collect.feature.today
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import ma.tany.collect.R
 import ma.tany.core.designsystem.R as DsR
 import ma.tany.core.designsystem.component.LocalTanyFormatters
+import ma.tany.core.designsystem.component.MoneyText
 import ma.tany.core.designsystem.component.ProductImageSurface
 import ma.tany.core.designsystem.component.TanyCard
 import ma.tany.core.designsystem.component.TanyChipSize
-import ma.tany.core.designsystem.component.TanyCodePill
-import ma.tany.core.designsystem.component.TanyDivider
 import ma.tany.core.designsystem.component.TanyStatusChip
 import ma.tany.core.designsystem.component.TanyTone
-import ma.tany.core.designsystem.component.TanyToneIcon
+import ma.tany.core.designsystem.component.colors
 import ma.tany.core.designsystem.format.ltrIsolated
 import ma.tany.core.designsystem.theme.TanyTheme
 import ma.tany.core.model.collect.AssetTone
@@ -35,70 +47,123 @@ import ma.tany.core.model.collect.MerchantDepositAction
 import ma.tany.core.model.collect.MerchantPhase
 import ma.tany.core.model.collect.Operation
 import ma.tany.core.model.collect.OperationKind
+import ma.tany.core.model.common.MoneyAmount
 import ma.tany.core.network.ApiEndpoint
+import java.time.Duration
+import java.time.Instant
 
 /**
- * Where a SERVER phase is listed on Today. Pure presentation of `phase` (same nature as its tone): the app never
- * decides what the merchant must do next — it only groups the server's phases so the counter work stands out.
+ * Today section of a SERVER phase. The six sections are exactly the groups of the server counters
+ * (`counts.late / blocked / toCollect / toReturn / awaitingCustomer / noShow`, tany-backend `getTodayOperations`) — the
+ * same sections as TANY Collect iOS. Pure presentation of `phase`: the app never decides what the merchant must do.
  */
 enum class OperationSection {
-    /** The merchant is the one expected at the counter (handover, reception, deposit hand-back). */
-    TO_HANDLE,
+    LATE,
 
-    /** Waiting for the customer's confirmation in TANY or for a TANY decision. */
-    WAITING,
+    /** TANY review or disputed deposit (`counts.blocked`). */
+    ATTENTION,
+    TO_COLLECT,
+    TO_RETURN,
+    AWAITING_CUSTOMER,
+    NO_SHOW,
 
-    /** Later today / with the customer / closed. */
-    LATER,
+    /** Closed or unexpected phases (never sent in Today's `operations`). */
+    OTHER,
 }
 
 /** Presentation of SERVER phases. The merchant's next step is never computed by the app. */
 data class PhaseUi(
+    /** Long label (booking detail banner). */
     @StringRes val label: Int,
     val tone: TanyTone,
     val section: OperationSection,
     /** One-line explanation of what the phase means (booking detail banner). */
     @StringRes val description: Int,
+    /** Short badge of list rows (iOS « ActivityRowContent.status »). */
+    @StringRes val short: Int,
 )
 
 fun MerchantPhase.ui(): PhaseUi = when (this) {
-    MerchantPhase.PICKUP_UPCOMING -> PhaseUi(R.string.phase_pickup_upcoming, TanyTone.NEUTRAL, OperationSection.LATER, R.string.phase_desc_pickup_upcoming)
-    MerchantPhase.PICKUP_READY -> PhaseUi(R.string.phase_pickup_ready, TanyTone.ACTION, OperationSection.TO_HANDLE, R.string.phase_desc_pickup_ready)
-    MerchantPhase.PICKUP_IN_PROGRESS -> PhaseUi(R.string.phase_pickup_in_progress, TanyTone.INFO, OperationSection.TO_HANDLE, R.string.phase_desc_pickup_in_progress)
-    MerchantPhase.PICKUP_AWAITING_CUSTOMER ->
-        PhaseUi(R.string.phase_pickup_awaiting_customer, TanyTone.WARNING, OperationSection.WAITING, R.string.phase_desc_pickup_awaiting_customer)
-    MerchantPhase.NO_SHOW -> PhaseUi(R.string.phase_no_show, TanyTone.NEUTRAL, OperationSection.LATER, R.string.phase_desc_no_show)
-    MerchantPhase.WITH_CUSTOMER -> PhaseUi(R.string.phase_with_customer, TanyTone.INFO, OperationSection.LATER, R.string.phase_desc_with_customer)
-    MerchantPhase.RETURN_DUE -> PhaseUi(R.string.phase_return_due, TanyTone.ACTION, OperationSection.TO_HANDLE, R.string.phase_desc_return_due)
-    MerchantPhase.RETURN_LATE -> PhaseUi(R.string.phase_return_late, TanyTone.DANGER, OperationSection.TO_HANDLE, R.string.phase_desc_return_late)
-    MerchantPhase.RETURN_IN_PROGRESS -> PhaseUi(R.string.phase_return_in_progress, TanyTone.INFO, OperationSection.TO_HANDLE, R.string.phase_desc_return_in_progress)
-    MerchantPhase.RETURN_AWAITING_CUSTOMER ->
-        PhaseUi(R.string.phase_return_awaiting_customer, TanyTone.WARNING, OperationSection.WAITING, R.string.phase_desc_return_awaiting_customer)
-    MerchantPhase.DEPOSIT_TO_REFUND -> PhaseUi(R.string.phase_deposit_to_refund, TanyTone.ACTION, OperationSection.TO_HANDLE, R.string.phase_desc_deposit_to_refund)
-    MerchantPhase.DEPOSIT_AWAITING_CUSTOMER ->
-        PhaseUi(R.string.phase_deposit_awaiting_customer, TanyTone.WARNING, OperationSection.WAITING, R.string.phase_desc_deposit_awaiting_customer)
-    MerchantPhase.DEPOSIT_DISPUTED -> PhaseUi(R.string.phase_deposit_disputed, TanyTone.DANGER, OperationSection.WAITING, R.string.phase_desc_deposit_disputed)
-    MerchantPhase.BLOCKED_PENDING_REVIEW ->
-        PhaseUi(R.string.phase_blocked_pending_review, TanyTone.WARNING, OperationSection.WAITING, R.string.phase_desc_blocked_pending_review)
-    MerchantPhase.COMPLETED -> PhaseUi(R.string.phase_completed, TanyTone.SUCCESS, OperationSection.LATER, R.string.phase_desc_completed)
-    MerchantPhase.CANCELLED -> PhaseUi(R.string.phase_cancelled, TanyTone.NEUTRAL, OperationSection.LATER, R.string.phase_desc_cancelled)
-    MerchantPhase.UNKNOWN -> PhaseUi(R.string.phase_unknown, TanyTone.NEUTRAL, OperationSection.LATER, R.string.phase_desc_unknown)
+    MerchantPhase.PICKUP_UPCOMING ->
+        PhaseUi(R.string.phase_pickup_upcoming, TanyTone.NEUTRAL, OperationSection.TO_COLLECT, R.string.phase_desc_pickup_upcoming, R.string.phase_short_upcoming)
+    MerchantPhase.PICKUP_READY ->
+        PhaseUi(R.string.phase_pickup_ready, TanyTone.ACTION, OperationSection.TO_COLLECT, R.string.phase_desc_pickup_ready, R.string.phase_short_ready)
+    MerchantPhase.PICKUP_IN_PROGRESS ->
+        PhaseUi(R.string.phase_pickup_in_progress, TanyTone.INFO, OperationSection.TO_COLLECT, R.string.phase_desc_pickup_in_progress, R.string.phase_short_in_progress)
+    MerchantPhase.PICKUP_AWAITING_CUSTOMER -> PhaseUi(
+        R.string.phase_pickup_awaiting_customer, TanyTone.WARNING, OperationSection.AWAITING_CUSTOMER,
+        R.string.phase_desc_pickup_awaiting_customer, R.string.phase_short_pending,
+    )
+    MerchantPhase.NO_SHOW -> PhaseUi(R.string.phase_no_show, TanyTone.NEUTRAL, OperationSection.NO_SHOW, R.string.phase_desc_no_show, R.string.phase_short_no_show)
+    MerchantPhase.WITH_CUSTOMER ->
+        PhaseUi(R.string.phase_with_customer, TanyTone.INFO, OperationSection.TO_RETURN, R.string.phase_desc_with_customer, R.string.phase_short_rented_out)
+    MerchantPhase.RETURN_DUE ->
+        PhaseUi(R.string.phase_return_due, TanyTone.ACTION, OperationSection.TO_RETURN, R.string.phase_desc_return_due, R.string.phase_short_expected)
+    MerchantPhase.RETURN_LATE -> PhaseUi(R.string.phase_return_late, TanyTone.DANGER, OperationSection.LATE, R.string.phase_desc_return_late, R.string.phase_short_late)
+    MerchantPhase.RETURN_IN_PROGRESS ->
+        PhaseUi(R.string.phase_return_in_progress, TanyTone.INFO, OperationSection.TO_RETURN, R.string.phase_desc_return_in_progress, R.string.phase_short_in_progress)
+    MerchantPhase.RETURN_AWAITING_CUSTOMER -> PhaseUi(
+        R.string.phase_return_awaiting_customer, TanyTone.WARNING, OperationSection.AWAITING_CUSTOMER,
+        R.string.phase_desc_return_awaiting_customer, R.string.phase_short_pending,
+    )
+    MerchantPhase.DEPOSIT_TO_REFUND ->
+        PhaseUi(R.string.phase_deposit_to_refund, TanyTone.ACTION, OperationSection.TO_RETURN, R.string.phase_desc_deposit_to_refund, R.string.phase_short_deposit)
+    MerchantPhase.DEPOSIT_AWAITING_CUSTOMER -> PhaseUi(
+        R.string.phase_deposit_awaiting_customer, TanyTone.WARNING, OperationSection.AWAITING_CUSTOMER,
+        R.string.phase_desc_deposit_awaiting_customer, R.string.phase_short_pending,
+    )
+    MerchantPhase.DEPOSIT_DISPUTED ->
+        PhaseUi(R.string.phase_deposit_disputed, TanyTone.DANGER, OperationSection.ATTENTION, R.string.phase_desc_deposit_disputed, R.string.phase_short_disputed)
+    MerchantPhase.BLOCKED_PENDING_REVIEW -> PhaseUi(
+        R.string.phase_blocked_pending_review, TanyTone.DANGER, OperationSection.ATTENTION,
+        R.string.phase_desc_blocked_pending_review, R.string.phase_short_incident,
+    )
+    MerchantPhase.COMPLETED ->
+        PhaseUi(R.string.phase_completed, TanyTone.SUCCESS, OperationSection.OTHER, R.string.phase_desc_completed, R.string.phase_short_completed)
+    MerchantPhase.CANCELLED ->
+        PhaseUi(R.string.phase_cancelled, TanyTone.NEUTRAL, OperationSection.OTHER, R.string.phase_desc_cancelled, R.string.phase_short_cancelled)
+    MerchantPhase.UNKNOWN -> PhaseUi(R.string.phase_unknown, TanyTone.NEUTRAL, OperationSection.OTHER, R.string.phase_desc_unknown, R.string.phase_short_unknown)
+}
+
+/** Sections always listed on Today, even empty (iOS: « À collecter » / « À retourner » with a reassuring line). */
+val ALWAYS_SHOWN_SECTIONS = setOf(OperationSection.TO_COLLECT, OperationSection.TO_RETURN)
+
+/**
+ * The SERVER instant that matters for a row: when the customer started waiting, else the pickup window start
+ * (pickup) or the return deadline (return). Display / ordering only.
+ */
+fun Operation.referenceTime(): Instant = when (phase.ui().section) {
+    OperationSection.AWAITING_CUSTOMER -> waitingSince ?: scheduledAt
+    else -> if (kind == OperationKind.RETURN) returnDeadline else pickupWindowStart
 }
 
 /**
- * Groups the server's operations by [OperationSection], keeping the SERVER order inside each group (the backend
- * already sorts by urgency). Empty sections are dropped.
+ * Groups the server's operations by [OperationSection] in the fixed iOS order, each section in chronological order of
+ * its server [referenceTime] (stable). Sections in [ALWAYS_SHOWN_SECTIONS] are kept even when empty.
  */
 fun groupBySection(operations: List<Operation>): List<Pair<OperationSection, List<Operation>>> =
     OperationSection.entries.mapNotNull { section ->
-        operations.filter { it.phase.ui().section == section }.takeIf { it.isNotEmpty() }?.let { section to it }
+        val items = operations.filter { it.phase.ui().section == section }.sortedBy { it.referenceTime() }
+        if (items.isEmpty() && section !in ALWAYS_SHOWN_SECTIONS) null else section to items
     }
 
 @StringRes
 fun OperationSection.title(): Int = when (this) {
-    OperationSection.TO_HANDLE -> R.string.today_section_to_handle
-    OperationSection.WAITING -> R.string.today_section_waiting
-    OperationSection.LATER -> R.string.today_section_later
+    OperationSection.LATE -> R.string.today_section_late
+    OperationSection.ATTENTION -> R.string.today_section_attention
+    OperationSection.TO_COLLECT -> R.string.today_section_to_collect
+    OperationSection.TO_RETURN -> R.string.today_section_to_return
+    OperationSection.AWAITING_CUSTOMER -> R.string.today_section_awaiting
+    OperationSection.NO_SHOW -> R.string.today_section_no_show
+    OperationSection.OTHER -> R.string.today_section_other
+}
+
+/** Line shown under an empty always-visible section. */
+@StringRes
+fun OperationSection.emptyLine(): Int? = when (this) {
+    OperationSection.TO_COLLECT -> R.string.today_section_to_collect_empty
+    OperationSection.TO_RETURN -> R.string.today_section_to_return_empty
+    else -> null
 }
 
 @StringRes
@@ -138,84 +203,204 @@ fun OperationKind.icon(): Int = if (this == OperationKind.RETURN) DsR.drawable.i
 @StringRes
 fun OperationKind.label(): Int = if (this == OperationKind.RETURN) R.string.kind_return else R.string.kind_pickup
 
-/** « Collecte · 09:00–11:00 » / « Retour · avant lun. 5 oct. · 18:00 » — times always in Africa/Casablanca. */
+/** Amount of a row: the deposit to hand back in deposit phases, otherwise the rental total — server values only. */
+fun Operation.rowAmount(): MoneyAmount = when (phase) {
+    MerchantPhase.DEPOSIT_TO_REFUND, MerchantPhase.DEPOSIT_AWAITING_CUSTOMER -> depositRefundAmount ?: depositAmount ?: rentalAmount
+    else -> pricing?.rentalTotal ?: rentalAmount
+}
+
+/** « 25 min » / « 2 h » / « 1 h 05 min » from a SERVER count of minutes. */
 @Composable
-fun Operation.scheduleLine(): String {
-    val formatters = LocalTanyFormatters.current
-    return if (kind == OperationKind.RETURN) {
-        stringResource(R.string.operation_return_before, stringResource(kind.label()), formatters.businessDayTime(returnDeadline))
-    } else {
-        "${stringResource(kind.label())} · ${formatters.businessTimeRange(pickupWindowStart, pickupWindowEnd)}"
+fun durationText(minutes: Int): String = when {
+    minutes < 60 -> stringResource(R.string.duration_minutes, minutes)
+    minutes % 60 == 0 -> stringResource(R.string.duration_hours, minutes / 60)
+    else -> stringResource(R.string.duration_hours_minutes, minutes / 60, minutes % 60)
+}
+
+/** Phases with a live return countdown (to the SERVER `returnDeadline`). Lateness itself always comes from `phase`. */
+private val COUNTDOWN_PHASES = setOf(MerchantPhase.WITH_CUSTOMER, MerchantPhase.RETURN_DUE, MerchantPhase.RETURN_IN_PROGRESS)
+
+/**
+ * The single exception / countdown line of a row, from server fields only (`phase`, `lateMinutes`, `waitingMinutes`,
+ * `customerConfirmationOverdue`, `returnDeadline`). Null = nothing to add.
+ */
+@Composable
+fun Operation.exceptionLine(): Pair<String, TanyTone>? = when (phase) {
+    MerchantPhase.NO_SHOW -> stringResource(R.string.row_exception_no_show) to TanyTone.NEUTRAL
+    MerchantPhase.RETURN_LATE -> {
+        val late = lateMinutes?.takeIf { it > 0 }
+        (if (late != null) stringResource(R.string.row_exception_late_for, durationText(late)) else stringResource(R.string.row_exception_late)) to TanyTone.DANGER
     }
+    MerchantPhase.PICKUP_AWAITING_CUSTOMER, MerchantPhase.RETURN_AWAITING_CUSTOMER, MerchantPhase.DEPOSIT_AWAITING_CUSTOMER -> {
+        val waiting = waitingMinutes
+        val text = when {
+            waiting == null -> stringResource(R.string.row_exception_waiting)
+            waiting < 1 -> stringResource(R.string.row_exception_waiting_now)
+            else -> stringResource(R.string.row_exception_waiting_for, durationText(waiting))
+        }
+        text to (if (customerConfirmationOverdue) TanyTone.DANGER else TanyTone.WARNING)
+    }
+    MerchantPhase.DEPOSIT_TO_REFUND -> stringResource(R.string.row_exception_deposit) to TanyTone.WARNING
+    MerchantPhase.BLOCKED_PENDING_REVIEW -> stringResource(R.string.row_exception_review) to TanyTone.DANGER
+    MerchantPhase.DEPOSIT_DISPUTED -> stringResource(R.string.row_exception_disputed) to TanyTone.DANGER
+    in COUNTDOWN_PHASES -> {
+        // Ticks every 15 s; no network call. Below one minute the line stays « less than 1 min » until the server phase
+        // says the return is late.
+        val now by produceState(Instant.now(), returnDeadline) {
+            while (true) {
+                value = Instant.now()
+                delay(15_000)
+            }
+        }
+        val minutes = Duration.between(now, returnDeadline).toMinutes().toInt()
+        (if (minutes < 1) stringResource(R.string.row_countdown_soon) else stringResource(R.string.row_countdown, durationText(minutes))) to TanyTone.NEUTRAL
+    }
+    else -> null
 }
 
 /**
- * Operation card: kind tile + schedule, product (white studio), server phase / deposit gesture / lateness chips, then
- * customer short name, usage period and reference. The leading accent bar marks cards the merchant handles now.
+ * Operation row (iOS « ActivityOperationRow »): WHO / WHAT / WHEN at a glance — thumbnail with the asset label code to
+ * find, « 09:00 · Collecte » + short server status, product, multi-day period, reference + amount, then one exception
+ * or countdown line. The whole row opens the operation (no inline action: the server state drives the flow).
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun OperationCard(operation: Operation, endpoint: ApiEndpoint, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun OperationRowContent(operation: Operation, endpoint: ApiEndpoint, modifier: Modifier = Modifier, showDay: Boolean = false) {
     val formatters = LocalTanyFormatters.current
+    val colors = TanyTheme.colors
     val phase = operation.phase.ui()
     val period = operation.effectiveUsagePeriod()
-    val colors = TanyTheme.colors
-    TanyCard(
-        modifier = modifier,
-        onClick = onClick,
-        accent = phase.tone.takeIf { phase.section == OperationSection.TO_HANDLE && (it == TanyTone.ACTION || it == TanyTone.DANGER) },
-        onClickLabel = stringResource(R.string.operation_open),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TanyToneIcon(operation.kind.icon(), phase.tone, size = 28.dp)
-                    Text(
-                        operation.scheduleLine(),
-                        style = TanyTheme.typography.label,
-                        color = colors.textMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Text(operation.product.name, style = TanyTheme.typography.headline, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
+    val time = operation.completedAt ?: operation.referenceTime()
+    val timeText = if (showDay) formatters.businessDayTime(time) else formatters.businessTime(time)
+    val exception = operation.exceptionLine()
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             ProductImageSurface(
                 url = endpoint.resolveMedia(operation.product.displayImage),
-                contentDescription = operation.product.name,
+                contentDescription = null,
                 modifier = Modifier.width(64.dp),
                 padding = 6.dp,
             )
-        }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            TanyStatusChip(stringResource(phase.label), phase.tone, size = TanyChipSize.SMALL)
-            operation.depositAction.label()?.let { TanyStatusChip(stringResource(it), TanyTone.WARNING, size = TanyChipSize.SMALL) }
-            operation.lateMinutes?.takeIf { it > 0 }?.let {
-                TanyStatusChip(stringResource(R.string.operation_late_minutes, it), TanyTone.DANGER, size = TanyChipSize.SMALL)
-            }
-            if (operation.customerConfirmationOverdue) {
-                val waiting = operation.waitingMinutes
-                TanyStatusChip(
-                    if (waiting != null) stringResource(R.string.operation_waiting_minutes, waiting) else stringResource(R.string.operation_waiting),
-                    TanyTone.WARNING,
-                    size = TanyChipSize.SMALL,
-                )
-            }
-        }
-        TanyDivider()
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                // Minimal customer data only: short name (verbatim proper noun).
-                Text(operation.customer.shortName, style = TanyTheme.typography.bodyStrong, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            operation.assetCode?.let {
                 Text(
-                    "${formatters.usagePeriod(period.startDate, period.endDate)} · " +
-                        pluralStringResource(R.plurals.booking_days, period.dayCount, period.dayCount),
-                    style = TanyTheme.typography.caption,
+                    ltrIsolated(it),
+                    style = TanyTheme.typography.caption.copy(fontFamily = TanyTheme.typography.code.fontFamily),
                     color = colors.textMuted,
                     maxLines = 1,
                 )
             }
-            TanyCodePill(ltrIsolated(operation.reference))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(painterResource(operation.kind.icon()), contentDescription = null, tint = phase.tone.colors().accent, modifier = Modifier.size(16.dp))
+                Text(
+                    "${ltrIsolated(timeText)} · ${stringResource(operation.kind.label())}",
+                    style = TanyTheme.typography.bodyStrong.copy(fontFeatureSettings = "tnum"),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(Modifier.weight(1f))
+                TanyStatusChip(stringResource(phase.short), phase.tone, size = TanyChipSize.SMALL)
+            }
+            Text(operation.product.name, style = TanyTheme.typography.headline, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (period.dayCount > 1) {
+                Text(
+                    "${pluralStringResource(R.plurals.booking_days, period.dayCount, period.dayCount)} · ${formatters.usagePeriod(period.startDate, period.endDate)}",
+                    style = TanyTheme.typography.caption,
+                    color = colors.textMuted,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "${ltrIsolated(operation.reference)} · ${operation.customer.shortName}",
+                    style = TanyTheme.typography.caption,
+                    color = colors.textMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                MoneyText(operation.rowAmount())
+            }
+            exception?.let { (text, tone) ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 2.dp)) {
+                    Icon(
+                        painterResource(if (tone == TanyTone.DANGER) DsR.drawable.ic_tany_warning else DsR.drawable.ic_tany_clock),
+                        contentDescription = null,
+                        tint = if (tone == TanyTone.NEUTRAL) colors.textMuted else tone.colors().accent,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text,
+                        style = TanyTheme.typography.label,
+                        color = if (tone == TanyTone.NEUTRAL) colors.textMuted else tone.colors().accent,
+                        maxLines = 3,
+                    )
+                }
+            }
         }
     }
+}
+
+/** One sentence for TalkBack (type, reference, time, product, item, amount, status, exception). */
+@Composable
+fun Operation.spokenSummary(): String {
+    val formatters = LocalTanyFormatters.current
+    val phase = phase.ui()
+    val parts = listOfNotNull(
+        stringResource(kind.label()),
+        reference,
+        formatters.businessTime(completedAt ?: referenceTime()),
+        product.name,
+        assetCode?.let { stringResource(R.string.row_item_code, it) },
+        formatters.money(rowAmount()),
+        stringResource(phase.short),
+        exceptionLine()?.first,
+    )
+    return parts.joinToString(", ")
+}
+
+/** Card wrapper of [OperationRowContent] (Today). Danger sections get the leading status bar. */
+@Composable
+fun OperationCard(operation: Operation, endpoint: ApiEndpoint, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val phase = operation.phase.ui()
+    val summary = operation.spokenSummary()
+    val openLabel = stringResource(R.string.operation_open)
+    TanyCard(
+        modifier = modifier.clearAndSetSemantics {
+            contentDescription = summary
+            role = Role.Button
+            onClick(label = openLabel) {
+                onClick()
+                true
+            }
+        },
+        onClick = onClick,
+        accent = phase.tone.takeIf { it == TanyTone.DANGER },
+        contentPadding = 14.dp,
+    ) {
+        OperationRowContent(operation, endpoint)
+    }
+}
+
+/** Row wrapper of [OperationRowContent] for grouped lists (Activity). */
+@Composable
+fun OperationListRow(operation: Operation, endpoint: ApiEndpoint, onClick: () -> Unit, showDay: Boolean) {
+    val summary = operation.spokenSummary()
+    val openLabel = stringResource(R.string.operation_open)
+    OperationRowContent(
+        operation = operation,
+        endpoint = endpoint,
+        showDay = showDay,
+        modifier = Modifier
+            .clickable(role = Role.Button, onClickLabel = openLabel, onClick = onClick)
+            .clearAndSetSemantics {
+                contentDescription = summary
+                role = Role.Button
+                onClick(label = openLabel) {
+                    onClick()
+                    true
+                }
+            }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    )
 }

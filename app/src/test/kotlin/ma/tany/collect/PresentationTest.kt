@@ -4,7 +4,9 @@ import kotlinx.coroutines.test.runTest
 import ma.tany.collect.core.ui.LoadState
 import ma.tany.collect.core.ui.groupConsecutiveByDay
 import ma.tany.collect.feature.equipment.filterAssets
+import ma.tany.collect.feature.today.ALWAYS_SHOWN_SECTIONS
 import ma.tany.collect.feature.today.OperationSection
+import ma.tany.collect.feature.today.referenceTime
 import ma.tany.collect.feature.today.TodayViewModel
 import ma.tany.collect.feature.today.groupBySection
 import ma.tany.collect.feature.today.ui
@@ -66,14 +68,16 @@ class PresentationTest {
             assertTrue(ui.description != 0)
             assertTrue(ui.section in OperationSection.entries)
         }
-        // Customer / TANY confirmations are never listed as « to handle » by the merchant.
-        listOf(
-            MerchantPhase.PICKUP_AWAITING_CUSTOMER,
-            MerchantPhase.RETURN_AWAITING_CUSTOMER,
-            MerchantPhase.DEPOSIT_AWAITING_CUSTOMER,
-            MerchantPhase.DEPOSIT_DISPUTED,
-            MerchantPhase.BLOCKED_PENDING_REVIEW,
-        ).forEach { assertEquals(OperationSection.WAITING, it.ui().section) }
+        // Sections mirror the SERVER counters (tany-backend getTodayOperations): awaitingCustomer, blocked, late…
+        listOf(MerchantPhase.PICKUP_AWAITING_CUSTOMER, MerchantPhase.RETURN_AWAITING_CUSTOMER, MerchantPhase.DEPOSIT_AWAITING_CUSTOMER)
+            .forEach { assertEquals(OperationSection.AWAITING_CUSTOMER, it.ui().section) }
+        listOf(MerchantPhase.DEPOSIT_DISPUTED, MerchantPhase.BLOCKED_PENDING_REVIEW).forEach { assertEquals(OperationSection.ATTENTION, it.ui().section) }
+        listOf(MerchantPhase.PICKUP_UPCOMING, MerchantPhase.PICKUP_READY, MerchantPhase.PICKUP_IN_PROGRESS)
+            .forEach { assertEquals(OperationSection.TO_COLLECT, it.ui().section) }
+        listOf(MerchantPhase.RETURN_DUE, MerchantPhase.RETURN_IN_PROGRESS, MerchantPhase.DEPOSIT_TO_REFUND)
+            .forEach { assertEquals(OperationSection.TO_RETURN, it.ui().section) }
+        assertEquals(OperationSection.LATE, MerchantPhase.RETURN_LATE.ui().section)
+        assertEquals(OperationSection.NO_SHOW, MerchantPhase.NO_SHOW.ui().section)
     }
 
     @Test
@@ -84,13 +88,12 @@ class PresentationTest {
         // Nothing lost or duplicated.
         assertEquals(operations.map { it.id }.toSet(), groups.flatMap { it.second }.map { it.id }.toSet())
         assertEquals(operations.size, groups.sumOf { it.second.size })
-        // Sections follow the fixed order and each keeps the server's relative order.
+        // Sections follow the fixed iOS order; inside a section, rows are chronological on their server instant.
         assertEquals(groups.map { it.first }, groups.map { it.first }.sortedBy { it.ordinal })
-        groups.forEach { (_, ops) ->
-            val serverIndexes = ops.map { op -> operations.indexOfFirst { it.id == op.id } }
-            assertEquals(serverIndexes.sorted(), serverIndexes)
-        }
-        assertTrue(groups.none { it.second.isEmpty() })
+        groups.forEach { (_, ops) -> assertEquals(ops.sortedBy { it.referenceTime() }, ops) }
+        // Only « À collecter » / « À retourner » may be empty (they always show a reassuring line).
+        assertTrue(groups.filter { it.second.isEmpty() }.all { it.first in ALWAYS_SHOWN_SECTIONS })
+        assertTrue(groups.map { it.first }.containsAll(ALWAYS_SHOWN_SECTIONS))
     }
 
     @Test

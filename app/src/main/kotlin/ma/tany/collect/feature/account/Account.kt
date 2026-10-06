@@ -101,6 +101,7 @@ fun AccountScreen(
     onOpenNotifications: () -> Unit,
     unreadNotifications: Int,
     onOpenShowcase: (() -> Unit)?,
+    inboxEnabled: Boolean = true,
     viewModel: AccountViewModel = hiltViewModel(),
 ) {
     val theme by viewModel.theme.collectAsStateWithLifecycle()

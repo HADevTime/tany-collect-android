@@ -308,6 +308,7 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
                     inboxEnabled = inboxEnabled,
                     onCounts = { shell.onTodayCounts(pointId, it) },
                     onOpenBooking = openBooking,
+                    onStartBooking = { navController.navigate(BookingRoute(it, start = true)) },
                     shortcuts = TodayShortcuts(
                         scan = { navController.navigate(ScanRoute) { launchSingleTop = true } },
                         activity = { navController.navigateTab(ActivityRoute) },

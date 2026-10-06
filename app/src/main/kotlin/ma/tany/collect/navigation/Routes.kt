@@ -17,7 +17,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object AccountRoute
 
-@Serializable data class BookingRoute(val bookingId: String)
+/** [start] = open straight on the guided flow (Home hero CTA); honoured only in stages where the server allows it. */
+@Serializable data class BookingRoute(val bookingId: String, val start: Boolean = false)
 
 /**
  * Scanner bound to one booking step: [target] = `BOOKING_QR` (customer QR / 6-digit code) or `ASSET_LABEL`;

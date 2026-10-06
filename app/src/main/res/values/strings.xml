@@ -830,4 +830,16 @@
         <item quantity="many">%d événements</item>
         <item quantity="other">%d événements</item>
     </plurals>
+    <string name="hero_next">Prochaine opération</string>
+    <string name="hero_window">Créneau %1$s</string>
+    <string name="hero_return_before">Retour attendu avant cette heure</string>
+    <string name="hero_cta_prepare">Préparer</string>
+    <string name="hero_cta_continue">Continuer</string>
+    <string name="hero_cta_open">Ouvrir</string>
+    <string name="hero_cta_view_rental">Voir la location</string>
+    <string name="home_stat_a11y">%1$s : %2$d</string>
+    <string name="home_no_next_title">Aucune opération à venir</string>
+    <string name="home_no_next_message">Les prochaines collectes et retours apparaîtront ici.</string>
+    <string name="home_collect_empty_other">Aucune autre collecte pour le moment.</string>
+    <string name="home_return_empty_other">Aucun autre retour pour le moment.</string>
 </resources>

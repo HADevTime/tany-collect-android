@@ -25,6 +25,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import ma.tany.collect.R
@@ -164,13 +166,53 @@ fun Operation.heroTier(): Int? = when (phase) {
 fun pickHero(operations: List<Operation>): Operation? =
     operations.filter { it.heroTier() != null }.minWithOrNull(compareBy<Operation>({ it.heroTier() }, { it.referenceTime() }))
 
-/** Home lists, in priority order. « À traiter maintenant » gathers the late returns and TANY reviews. */
+/**
+ * Home lists, in the iOS order: « À collecter » and « À retourner » first (always shown), then « À traiter maintenant »
+ * (late returns + TANY reviews), waiting for the customer, no-shows.
+ */
 enum class HomeSection(val sections: Set<OperationSection>) {
-    NOW(setOf(OperationSection.LATE, OperationSection.ATTENTION)),
     TO_COLLECT(setOf(OperationSection.TO_COLLECT)),
     TO_RETURN(setOf(OperationSection.TO_RETURN)),
+    NOW(setOf(OperationSection.LATE, OperationSection.ATTENTION)),
     AWAITING_CUSTOMER(setOf(OperationSection.AWAITING_CUSTOMER)),
     NO_SHOW(setOf(OperationSection.NO_SHOW)),
+}
+
+fun HomeSection.contains(operation: Operation): Boolean = operation.phase.ui().section in sections
+
+/** Sections the Home always lists, even empty (iOS: a reassuring line under « À collecter » / « À retourner »). */
+val ALWAYS_SHOWN_HOME_SECTIONS = setOf(HomeSection.TO_COLLECT, HomeSection.TO_RETURN)
+
+/** [homeSections] plus the always-shown « À collecter » / « À retourner » (possibly empty), in Home order. */
+fun homeSectionsWithAnchors(operations: List<Operation>, hero: Operation?): List<Pair<HomeSection, List<Operation>>> {
+    val filled = homeSections(operations, hero).toMap()
+    return HomeSection.entries.mapNotNull { section ->
+        val items = filled[section] ?: emptyList()
+        if (items.isEmpty() && section !in ALWAYS_SHOWN_HOME_SECTIONS) null else section to items
+    }
+}
+
+/** Line under an empty always-shown section; « aucune autre » when the hero above is of that kind. */
+@StringRes
+fun HomeSection.emptyLine(heroInSection: Boolean): Int = when (this) {
+    HomeSection.TO_COLLECT -> if (heroInSection) R.string.home_collect_empty_other else R.string.today_section_to_collect_empty
+    HomeSection.TO_RETURN -> if (heroInSection) R.string.home_return_empty_other else R.string.today_section_to_return_empty
+    else -> R.string.summary_all_clear
+}
+
+/**
+ * Index in the Home list where a stat card leads: the hero when it belongs to that group, else the section header.
+ * Items: [stale notice] · stats · hero · per section (header + rows or one empty line). Null = nothing to show.
+ */
+fun homeItemIndex(sections: List<Pair<HomeSection, List<Operation>>>, target: HomeSection, hero: Operation?, hasStale: Boolean): Int? {
+    val heroIndex = (if (hasStale) 1 else 0) + 1
+    if (hero != null && target.contains(hero)) return heroIndex
+    var index = heroIndex + 1
+    sections.forEach { (section, ops) ->
+        if (section == target) return index
+        index += 1 + maxOf(ops.size, 1)
+    }
+    return null
 }
 
 /**
@@ -188,8 +230,8 @@ fun homeSections(operations: List<Operation>, hero: Operation?): List<Pair<HomeS
 @StringRes
 fun HomeSection.title(): Int = when (this) {
     HomeSection.NOW -> R.string.home_section_now
-    HomeSection.TO_COLLECT -> R.string.home_section_to_collect
-    HomeSection.TO_RETURN -> R.string.home_section_to_return
+    HomeSection.TO_COLLECT -> R.string.today_section_to_collect
+    HomeSection.TO_RETURN -> R.string.today_section_to_return
     HomeSection.AWAITING_CUSTOMER -> R.string.today_section_awaiting
     HomeSection.NO_SHOW -> R.string.today_section_no_show
 }
@@ -357,17 +399,21 @@ fun OperationRowContent(operation: Operation, endpoint: ApiEndpoint, modifier: M
     }
     val exception = operation.exceptionLine()
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // « 09:30 · Collecte » + server status: when and what, on one line (iOS row).
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(painterResource(operation.kind.icon()), contentDescription = null, tint = phase.tone.colors().accent, modifier = Modifier.size(16.dp))
-                    Text(stringResource(operation.kind.label()), style = TanyTheme.typography.label, color = colors.textMuted)
-                }
-                Text(
-                    (time.prefix?.let { stringResource(it) + " " } ?: "") + ltrIsolated(timeText),
-                    style = TanyTheme.typography.title.copy(fontFeatureSettings = "tnum"),
-                )
-            }
+            Icon(painterResource(operation.kind.icon()), contentDescription = null, tint = phase.tone.colors().accent, modifier = Modifier.size(18.dp))
+            Text(
+                buildAnnotatedString {
+                    withStyle(TanyTheme.typography.title.copy(fontFeatureSettings = "tnum").toSpanStyle()) {
+                        append((time.prefix?.let { stringResource(it) + " " } ?: "") + ltrIsolated(timeText))
+                    }
+                    withStyle(TanyTheme.typography.body.toSpanStyle().copy(color = colors.textMuted)) {
+                        append(" · ")
+                        append(stringResource(operation.kind.label()))
+                    }
+                },
+                modifier = Modifier.weight(1f),
+            )
             TanyStatusChip(stringResource(phase.short), phase.tone, size = TanyChipSize.SMALL)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {

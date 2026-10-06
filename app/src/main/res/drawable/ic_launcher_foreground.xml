@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Simple "T" with a TANY pink dot, inside the 66dp safe zone of the 108dp adaptive canvas. -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M36,36h36v8H58v28h-8V44H36z" />
-    <path android:fillColor="#FFE5155B" android:pathData="M66,66m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
-</vector>
+<!--
+  Official TANY Collect artwork (same file as tany-collect-ios AppIconCollect-1024.png), drawn on the
+  72 dp visible area of the 108 dp adaptive canvas (inset 18 dp = 1/6): the mark keeps the iOS proportions and stays far
+  inside the 66 dp safe zone under every launcher mask (circle, squircle, rounded square). The artwork is opaque graphite: the inset edge blends with the background.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_launcher_artwork"
+    android:inset="16.667%" />

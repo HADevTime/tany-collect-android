@@ -10,5 +10,8 @@ captures/
 *.keystore
 *.jks
 keystore.properties
+# Firebase app config: only the STAGING one is versioned (client identifiers, not secrets — never the
+# FCM service account). DEV / PROD files stay local until a release explicitly asks for them.
 google-services.json
+!app/src/staging/google-services.json
 .kotlin/

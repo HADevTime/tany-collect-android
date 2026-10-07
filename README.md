@@ -107,8 +107,9 @@ parity with TANY Collect iOS — backend `docs/ANDROID-PUSH.md`): token register
 `MainViewModel` through session restore, OTP sign-in and point choice, then opened by the shell of the active point
 (`CollectPushRouting`: server `deeplink`, else the centre; a notification of ANOTHER point never opens its operation and
 is marked read on its own point). Channels `operations` · `returns_deposits` · `account`. Permission asked in context
-(Today once after sign-in, notification centre), never at launch. Firebase config per environment, never committed:
-`app/src/staging/google-services.json` (package `ma.tany.collect.staging`, project TANY Staging); no file ⇒ no push.
+(Today once after sign-in, notification centre), never at launch. Firebase config per environment: STAGING versioned
+(`app/src/staging/google-services.json`, project `tany-d3dbe`, package `ma.tany.collect.staging`; client identifiers, not
+secrets); DEV / PROD files stay local (no file ⇒ no push).
 
 ## Authorization (canonical backend model)
 

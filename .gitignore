@@ -12,3 +12,4 @@ captures/
 keystore.properties
 google-services.json
 .kotlin/
+scripts/beta/node_modules/

@@ -62,6 +62,9 @@ is selected automatically. Sign-out clears the active point and any operation ph
 
 Validated at configuration time, at runtime and by `EnvironmentConfigTest` for every variant.
 
+**Beta testers**: every merge to `main` publishes the `staging` APK (stable STAGING key, increasing `versionCode`)
+to https://beta.tany.ma — see `docs/BETA_DISTRIBUTION.md`.
+
 ## Build & test
 
 ```bash

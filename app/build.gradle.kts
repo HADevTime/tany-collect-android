@@ -16,6 +16,18 @@ val stagingBaseUrl = "https://staging.tany.ma"
 val devBaseUrl = (findProperty("tany.devApiBaseUrl") as String?) ?: "http://10.0.2.2:3000"
 check(!devBaseUrl.contains("tany.ma")) { "tany.devApiBaseUrl must not target a TANY hosted environment" }
 
+// STAGING signing (beta.tany.ma): a DEDICATED, stable STAGING key — never the PROD key — injected by the `publish-beta`
+// CI job from GitHub environment secrets (keystore decoded to a temp file, never committed). Without it (PR CI, local
+// builds) staging falls back to the debug key: installable for a quick test, but never published (`publish-beta.mjs`
+// refuses any certificate other than TANY_STAGING_CERT_SHA256).
+val stagingKeystoreFile = providers.environmentVariable("TANY_STAGING_KEYSTORE_FILE").orNull
+check(providers.gradleProperty("tany.staging.requireSigning").orNull != "true" || stagingKeystoreFile != null) {
+    "tany.staging.requireSigning=true but TANY_STAGING_KEYSTORE_FILE is not set"
+}
+// STAGING versionCode: monotonic, set by CI (`git rev-list --count HEAD` on main) so each published build updates the
+// installed Collect β. PROD keeps defaultConfig.versionCode (its own strategy, untouched).
+val stagingVersionCode = providers.gradleProperty("tany.staging.versionCode").orNull?.toInt()
+
 android {
     namespace = "ma.tany.collect"
     compileSdk = 36
@@ -27,6 +39,17 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (stagingKeystoreFile != null) {
+            create("staging") {
+                storeFile = file(stagingKeystoreFile)
+                storePassword = providers.environmentVariable("TANY_STAGING_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("TANY_STAGING_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("TANY_STAGING_KEY_PASSWORD").get()
+            }
+        }
     }
 
     buildTypes {
@@ -53,8 +76,9 @@ android {
             buildConfigField("String", "TANY_ENVIRONMENT", "\"STAGING\"")
             buildConfigField("String", "TANY_API_BASE_URL", "\"$stagingBaseUrl\"")
             resValue("string", "app_name", "Collect β")
-            // Installable internal builds; release signing is configured outside the repo (never committed).
-            signingConfig = signingConfigs.getByName("debug")
+            // Stable STAGING key when CI provides it (see top of file), debug key otherwise. PROD signing is
+            // configured outside the repo and is never this key.
+            signingConfig = signingConfigs.findByName("staging") ?: signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
         }
     }
@@ -80,6 +104,12 @@ android {
         checkReleaseBuilds = false
     }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("staging")) { variant ->
+        stagingVersionCode?.let { code -> variant.outputs.forEach { it.versionCode.set(code) } }
+    }
 }
 
 kotlin {

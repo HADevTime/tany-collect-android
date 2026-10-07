@@ -1,14 +1,18 @@
 name: CI
 
-# Cost-optimized: runs on pull requests only (a merged PR was already validated — no duplicate run on main),
-# one Linux job, no emulator (Compose UI tests run on the JVM with Robolectric), superseded runs cancelled.
+# Cost-optimized: one Linux job, no emulator (Compose UI tests run on the JVM with Robolectric), superseded PR runs
+# cancelled. Also runs on main (= after a merge) because TANY Collect β (https://beta.tany.ma) is published from
+# there, and only once every test of that exact commit has passed (`publish-beta` job, docs/BETA_DISTRIBUTION.md).
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # main runs are queued, never cancelled mid-publish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -27,6 +31,9 @@ jobs:
           java-version: 17
 
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Beta publish script tests
+        run: node --test scripts/beta/publish-beta.test.mjs
 
       - name: Unit + contract tests (JVM modules)
         run: ./gradlew --stacktrace :core:model:test :core:network:test
@@ -59,3 +66,73 @@ jobs:
             **/build/reports/
             **/build/test-results/
           retention-days: 7
+
+  publish-beta:
+    name: Publish TANY Collect β · beta.tany.ma
+    # Only a push to main (a merged PR) whose build, lint and tests above ALL passed. Never a PR, never another branch.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Secrets live in this environment (deployment branches: main only) — never in the repo.
+    environment: beta-staging
+    concurrency:
+      group: publish-beta
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # STAGING versionCode = number of commits on main (monotonic: main is never rewritten)
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check beta configuration
+        env:
+          TANY_STAGING_KEYSTORE_BASE64: ${{ secrets.TANY_STAGING_KEYSTORE_BASE64 }}
+          TANY_STAGING_KEYSTORE_PASSWORD: ${{ secrets.TANY_STAGING_KEYSTORE_PASSWORD }}
+          TANY_STAGING_KEY_ALIAS: ${{ secrets.TANY_STAGING_KEY_ALIAS }}
+          TANY_STAGING_KEY_PASSWORD: ${{ secrets.TANY_STAGING_KEY_PASSWORD }}
+          TANY_BETA_BLOB_TOKEN: ${{ secrets.TANY_BETA_BLOB_TOKEN }}
+          TANY_STAGING_CERT_SHA256: ${{ vars.TANY_STAGING_CERT_SHA256 }}
+        run: |
+          missing=0
+          for name in TANY_STAGING_KEYSTORE_BASE64 TANY_STAGING_KEYSTORE_PASSWORD TANY_STAGING_KEY_ALIAS \
+                      TANY_STAGING_KEY_PASSWORD TANY_BETA_BLOB_TOKEN TANY_STAGING_CERT_SHA256; do
+            if [ -z "${!name}" ]; then echo "::error::$name is not configured (environment beta-staging)"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Build STAGING APK (stable STAGING key)
+        env:
+          TANY_STAGING_KEYSTORE_BASE64: ${{ secrets.TANY_STAGING_KEYSTORE_BASE64 }}
+          TANY_STAGING_KEYSTORE_PASSWORD: ${{ secrets.TANY_STAGING_KEYSTORE_PASSWORD }}
+          TANY_STAGING_KEY_ALIAS: ${{ secrets.TANY_STAGING_KEY_ALIAS }}
+          TANY_STAGING_KEY_PASSWORD: ${{ secrets.TANY_STAGING_KEY_PASSWORD }}
+        run: |
+          export TANY_STAGING_KEYSTORE_FILE="$RUNNER_TEMP/tany-staging.jks"
+          trap 'rm -f "$TANY_STAGING_KEYSTORE_FILE"' EXIT
+          printf '%s' "$TANY_STAGING_KEYSTORE_BASE64" | base64 -d > "$TANY_STAGING_KEYSTORE_FILE"
+          ./gradlew --stacktrace :app:assembleStaging \
+            -Ptany.staging.requireSigning=true \
+            -Ptany.staging.versionCode="$(git rev-list --count HEAD)"
+
+      - name: Publish (upload, verify, then switch the manifest)
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.TANY_BETA_BLOB_TOKEN }}
+          BETA_APP: collect
+          BETA_EXPECTED_CERT_SHA256: ${{ vars.TANY_STAGING_CERT_SHA256 }}
+          BETA_COMMIT: ${{ github.sha }}
+        run: |
+          npm ci --prefix scripts/beta --no-audit --no-fund
+          apks=(app/build/outputs/apk/staging/*.apk)
+          [ "${#apks[@]}" -eq 1 ] || { echo "::error::expected one STAGING APK, found ${#apks[@]}"; exit 1; }
+          BETA_APK="${apks[0]}" node scripts/beta/publish-beta.mjs

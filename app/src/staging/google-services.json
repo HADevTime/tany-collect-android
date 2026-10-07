@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "468649649628",
+    "project_id": "tany-d3dbe",
+    "storage_bucket": "tany-d3dbe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:468649649628:android:90d098dc60b77536afdb19",
+        "android_client_info": {
+          "package_name": "ma.tany.client.staging"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5dvIl-K7TlUtIRD1xEUKSbh5yciN8W_g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:468649649628:android:91cfb593c4f9f8bdafdb19",
+        "android_client_info": {
+          "package_name": "ma.tany.collect.staging"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5dvIl-K7TlUtIRD1xEUKSbh5yciN8W_g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -3,4 +3,6 @@
     <color name="tany_window_background">#FFF5F5F3</color>
     <!-- Graphite of the official TANY Collect icon artwork. -->
     <color name="tany_launcher_background">#FF23262B</color>
+    <!-- Notification accent (small-icon tint in the shade) = TANY pink. -->
+    <color name="tany_notification_accent">#FFE5155B</color>
 </resources>

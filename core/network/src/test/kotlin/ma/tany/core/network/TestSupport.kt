@@ -29,5 +29,11 @@ object NoopPushTokenRegistrar : PushTokenRegistrar {
 
     override suspend fun register() = Unit
 
+    override suspend fun refresh() = Unit
+
+    override suspend fun onNewToken(token: String) = Unit
+
     override suspend fun unregister() = Unit
+
+    override fun forget() = Unit
 }

@@ -28,6 +28,35 @@ check(providers.gradleProperty("tany.staging.requireSigning").orNull != "true" |
 // installed Collect β. PROD keeps defaultConfig.versionCode (its own strategy, untouched).
 val stagingVersionCode = providers.gradleProperty("tany.staging.versionCode").orNull?.toInt()
 
+/**
+ * Firebase (FCM push) WITHOUT the google-services plugin and without committing any Firebase file: when
+ * `app/src/<buildType>/google-services.json` exists (git-ignored, one Firebase project PER environment), the values
+ * FirebaseInitProvider reads are generated as resources — exactly what the plugin would generate. The file MUST
+ * declare this build's applicationId (a staging build can never carry the PROD Firebase app, nor the reverse).
+ * No file ⇒ no Firebase, no push token: the app and the in-app notification centre work unchanged (CI builds).
+ */
+@Suppress("UNCHECKED_CAST")
+fun firebaseResValues(buildType: String, applicationId: String): Map<String, String> {
+    val json = file("src/$buildType/google-services.json")
+    if (!json.exists()) return emptyMap()
+    val root = groovy.json.JsonSlurper().parse(json) as Map<String, Any?>
+    val project = root["project_info"] as Map<String, Any?>
+    val client = (root["client"] as List<Map<String, Any?>>).firstOrNull { entry ->
+        val info = entry["client_info"] as Map<String, Any?>
+        (info["android_client_info"] as Map<String, Any?>)["package_name"] == applicationId
+    } ?: error("src/$buildType/google-services.json has no Android app '$applicationId': wrong Firebase project / environment")
+    val appId = (client["client_info"] as Map<String, Any?>)["mobilesdk_app_id"] as String
+    val apiKey = ((client["api_key"] as List<Map<String, Any?>>).first())["current_key"] as String
+    return buildMap {
+        put("google_app_id", appId)
+        put("google_api_key", apiKey)
+        put("gcm_defaultSenderId", project["project_number"].toString())
+        put("project_id", project["project_id"].toString())
+        (project["storage_bucket"] as String?)?.let { put("google_storage_bucket", it) }
+    }
+}
+
+
 android {
     namespace = "ma.tany.collect"
     compileSdk = 36
@@ -116,6 +145,18 @@ kotlin {
     compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
 }
 
+// Per VARIANT (never inherited through initWith: staging must not pick up the release Firebase app).
+val firebaseApplicationIds = mapOf("debug" to "ma.tany.collect.dev", "staging" to "ma.tany.collect.staging", "release" to "ma.tany.collect")
+androidComponents {
+    onVariants { variant ->
+        val buildType = variant.buildType ?: return@onVariants
+        val applicationId = firebaseApplicationIds[buildType] ?: return@onVariants
+        firebaseResValues(buildType, applicationId).forEach { (key, value) ->
+            variant.resValues.put(variant.makeResValueKey("string", key), com.android.build.api.variant.ResValue(value, null))
+        }
+    }
+}
+
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:network"))
@@ -131,6 +172,10 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.coil.network.okhttp)
+    // FCM push (token + foreground messages). Firebase config is per environment and never committed (see above).
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     // QR / label scanning: CameraX preview + ML Kit barcode (bundled model — works offline, no Play Services download).
     implementation(libs.androidx.camera.camera2)

@@ -1,5 +1,6 @@
 package ma.tany.collect.navigation
 
+import ma.tany.collect.core.push.PushEvents
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.Alignment
@@ -97,17 +98,23 @@ import kotlin.reflect.KClass
 
 /**
  * App shell. Signed out ⇒ OTP flow; signed in without active point ⇒ point picker; otherwise the operational tabs.
- * A deep link received while signed out is not replayed (the merchant lands on Today after sign-in).
+ * A tapped push is kept while signed out / choosing a point ([pushPending]) and opened by the shell of the active point
+ * ([consumePush]: its server deep link, or nothing for a notification of another point).
  */
 @Composable
-fun CollectApp(sessionState: SessionState, activePointId: String?) {
+fun CollectApp(
+    sessionState: SessionState,
+    activePointId: String?,
+    pushPending: Boolean = false,
+    consumePush: (pointId: String) -> String? = { null },
+) {
     when {
         sessionState == SessionState.Loading || activePointId == null -> TanyLoadingState()
         sessionState is SessionState.SignedOut -> AuthFlow(sessionExpired = sessionState.expired)
         activePointId.isEmpty() -> PointPickerScreen()
         // A new point = a new shell: navigation, back stacks and every screen ViewModel start over, so no data of the
         // previous point can stay on screen (same as iOS « selectPoint » + « resetNavigation »).
-        else -> key(activePointId) { MainShell(activePointId) }
+        else -> key(activePointId) { MainShell(activePointId, pushPending, consumePush) }
     }
 }
 
@@ -132,7 +139,13 @@ private fun AuthFlow(sessionExpired: Boolean) {
 class ShellViewModel @Inject constructor(
     private val repository: CollectRepository,
     private val notifications: CollectNotificationRepository,
+    pushEvents: PushEvents = PushEvents(),
 ) : ViewModel() {
+    init {
+        // Push received / opened: the bell re-reads the SERVER unread count of the active point.
+        viewModelScope.launch { pushEvents.notificationStateChanged.collect { loadedPoint?.let(::refreshUnread) } }
+    }
+
     private val _me = MutableStateFlow<LoadState<CollectMe>>(LoadState.Loading)
     val me: StateFlow<LoadState<CollectMe>> = _me.asStateFlow()
 
@@ -225,7 +238,12 @@ private fun RowScope.ScanBarAction(onClick: () -> Unit) {
 }
 
 @Composable
-private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) {
+private fun MainShell(
+    pointId: String,
+    pushPending: Boolean,
+    consumePush: (pointId: String) -> String?,
+    shell: ShellViewModel = hiltViewModel(),
+) {
     LaunchedEffect(pointId) { shell.load(pointId) }
     val meState by shell.me.collectAsStateWithLifecycle()
     val me = (meState as? LoadState.Loaded)?.value
@@ -246,6 +264,10 @@ private fun MainShell(pointId: String, shell: ShellViewModel = hiltViewModel()) 
         val uri = Uri.parse(link)
         // Only known destinations; an unknown link (newer server) is ignored rather than crashing.
         if (navController.graph.hasDeepLink(uri)) navController.navigate(uri)
+    }
+    // Tapped push: opened once the graph exists (cold start, after sign-in or point choice, or while running).
+    LaunchedEffect(pushPending, backStack != null) {
+        if (pushPending && backStack != null) consumePush(pointId)?.let(openLink)
     }
     val showBar = tabs.any { tab -> destination?.hierarchy?.any { it.hasRoute(tab.type) } == true }
     val colors = TanyTheme.colors

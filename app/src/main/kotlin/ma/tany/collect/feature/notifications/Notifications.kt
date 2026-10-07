@@ -1,5 +1,7 @@
 package ma.tany.collect.feature.notifications
 
+import ma.tany.collect.core.push.PushEvents
+import ma.tany.collect.core.push.PushPermissionNotice
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,9 +88,19 @@ data class NotificationsState(
  * its `deepLink` (`tanycollect://…`): the target screen re-reads server state, a notification never executes an action.
  */
 @HiltViewModel
-class NotificationsViewModel @Inject constructor(private val repository: CollectNotificationRepository) : ViewModel() {
+class NotificationsViewModel @Inject constructor(
+    private val repository: CollectNotificationRepository,
+    pushEvents: PushEvents = PushEvents(),
+) : ViewModel() {
     private val _state = MutableStateFlow(NotificationsState())
     val state: StateFlow<NotificationsState> = _state.asStateFlow()
+
+    /** Point of the last read: the centre is the canonical history, a push re-reads it from the server. */
+    private var lastPoint: String? = null
+
+    init {
+        viewModelScope.launch { pushEvents.notificationStateChanged.collect { lastPoint?.let(::refresh) } }
+    }
 
     private val _links = Channel<String>(Channel.BUFFERED)
 
@@ -96,6 +108,7 @@ class NotificationsViewModel @Inject constructor(private val repository: Collect
     val links: Flow<String> = _links.receiveAsFlow()
 
     fun refresh(pointId: String) {
+        lastPoint = pointId
         _state.update { it.copy(loading = it.items.isEmpty(), error = null) }
         viewModelScope.launch {
             when (val result = repository.page(pointId)) {
@@ -185,6 +198,13 @@ fun NotificationsScreen(
             },
         )
         val error = state.error
+        // Contextual invitation: where the merchant looks for notifications (settings route once declined for good).
+        if (state.enabled && !state.loading) {
+            PushPermissionNotice(
+                message = stringResource(R.string.push_permission_centre_message),
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp),
+            )
+        }
         when {
             state.loading -> TanyListSkeleton(rows = 5, withMedia = false)
             error != null && state.items.isEmpty() -> TanyErrorState(stringResource(error.messageRes()), onRetry = { viewModel.refresh(pointId) })

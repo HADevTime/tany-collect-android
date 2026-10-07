@@ -23,6 +23,7 @@ robolectric = "4.16"
 androidxTestCore = "1.6.1"
 androidxTestJunit = "1.2.1"
 camerax = "1.4.2"
+firebaseBom = "34.0.0"
 mlkitBarcode = "17.3.0"
 
 [libraries]
@@ -59,6 +60,9 @@ hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt"
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
 
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 

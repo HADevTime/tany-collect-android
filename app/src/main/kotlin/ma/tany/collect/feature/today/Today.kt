@@ -1,5 +1,7 @@
 package ma.tany.collect.feature.today
 
+import ma.tany.collect.core.push.PushPermissionNotice
+import ma.tany.collect.core.push.PushEvents
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -90,7 +92,15 @@ import javax.inject.Inject
 class TodayViewModel @Inject constructor(
     private val repository: CollectRepository,
     val endpoint: ApiEndpoint,
+    pushEvents: PushEvents = PushEvents(),
 ) : ViewModel() {
+    /** Point of the last read: a push re-reads Today for it (server truth; the payload is never business state). */
+    private var lastPoint: String? = null
+
+    init {
+        viewModelScope.launch { pushEvents.received.collect { lastPoint?.let { refresh(it, silent = true) } } }
+    }
+
     private val _state = MutableStateFlow<LoadState<TodayResponse>>(LoadState.Loading)
     val state: StateFlow<LoadState<TodayResponse>> = _state.asStateFlow()
 
@@ -110,6 +120,7 @@ class TodayViewModel @Inject constructor(
     val updatedAt: StateFlow<Instant?> = _updatedAt.asStateFlow()
 
     fun load(pointId: String) {
+        lastPoint = pointId
         _state.value = LoadState.Loading
         viewModelScope.launch { apply(repository.today(pointId), initial = true) }
     }
@@ -119,6 +130,7 @@ class TodayViewModel @Inject constructor(
      * on screen with a notice.
      */
     fun refresh(pointId: String, silent: Boolean = false) {
+        lastPoint = pointId
         if (_refreshing.value) return
         if (_state.value !is LoadState.Loaded) return load(pointId)
         if (!silent) _refreshing.value = true
@@ -203,6 +215,14 @@ fun TodayScreen(
             onOpenNotifications = onOpenNotifications,
             onScan = shortcuts.scan,
         )
+        // After sign-in, once: why notifications matter for operations, then the Android dialog (never at launch).
+        if (state is LoadState.Loaded) {
+            PushPermissionNotice(
+                message = stringResource(R.string.push_permission_today_message),
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
+                onlyFirstTime = true,
+            )
+        }
         when (val s = state) {
             LoadState.Loading -> TanyListSkeleton(header = true, rows = 3)
             is LoadState.Failed -> TanyErrorState(stringResource(s.error.messageRes()), onRetry = { viewModel.load(pointId) })

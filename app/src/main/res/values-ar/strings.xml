@@ -875,4 +875,15 @@
     <string name="deposit_late_reason_next_delayed">أثّر التأخر في الإرجاع على الحجز التالي.</string>
     <string name="deposit_late_reason_next_lost">لم يُرجَع الغرض في الوقت المناسب للحجز التالي.</string>
     <string name="row_exception_deposit_returned">رُدّ مبلغ الضمان · %1$s</string>
+    <string name="push_channel_operations">العمليات</string>
+    <string name="push_channel_operations_description">حجز جديد، حجز مُلغى، غرض يجب تحضيره.</string>
+    <string name="push_channel_returns_deposits">الإرجاع والضمان</string>
+    <string name="push_channel_returns_deposits_description">ضمان يجب إرجاعه إلى الزبون، قرار TANY.</string>
+    <string name="push_channel_account">المداخيل والتسوية</string>
+    <string name="push_channel_account_description">مكافأة، زيارة وكيل TANY، تسوية يجب تأكيدها.</string>
+    <string name="push_permission_title">كن على علم في الوقت المناسب</string>
+    <string name="push_permission_today_message">يُعلمك TANY Collect بحجز جديد أو بإلغاء أو بضمان يجب إرجاعه — حتى عندما يكون التطبيق مغلقًا.</string>
+    <string name="push_permission_centre_message">فعّل الإشعارات لتكون على علم بعمليات نقطتك، حتى عندما يكون التطبيق مغلقًا.</string>
+    <string name="push_permission_enable">تفعيل الإشعارات</string>
+    <string name="push_permission_settings">فتح الإعدادات</string>
 </resources>

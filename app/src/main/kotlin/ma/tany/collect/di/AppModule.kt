@@ -15,6 +15,7 @@ import ma.tany.collect.core.media.AndroidOperationPhotos
 import ma.tany.collect.core.media.OperationPhotoFiles
 import ma.tany.collect.core.media.OperationPhotos
 import ma.tany.collect.core.preferences.CollectPreferences
+import ma.tany.collect.core.push.FirebasePushTokenSource
 import ma.tany.collect.core.storage.KeystoreSessionStore
 import ma.tany.core.network.ApiEndpoint
 import ma.tany.core.network.CollectAuthRepository
@@ -28,7 +29,6 @@ import ma.tany.core.network.DefaultCollectOperationsRepository
 import ma.tany.core.network.DefaultCollectAuthRepository
 import ma.tany.core.network.DefaultCollectRepository
 import ma.tany.core.network.BackendPushTokenRegistrar
-import ma.tany.core.network.NoPushTokenSource
 import ma.tany.core.network.PushTokenRegistrar
 import ma.tany.core.network.SessionManager
 import ma.tany.core.network.TanyCollectApi
@@ -65,15 +65,17 @@ object AppModule {
     }
 
     /**
-     * FCM registration through `POST/DELETE /collect/devices` (`platform:"android"`, backend-supported). The token
-     * source becomes Firebase Messaging in the notifications slice (needs the per-environment Firebase config).
+     * FCM registration through `POST/DELETE /collect/devices` (`platform:"android"` ⇒ `android-collect`). The token
+     * comes from Firebase Messaging when this build carries its environment's Firebase config; otherwise no token ⇒
+     * no registration (Today and the notification centre work unchanged).
      */
     @Provides
     @Singleton
-    fun pushTokenRegistrar(api: TanyCollectApi): PushTokenRegistrar = BackendPushTokenRegistrar(
-        source = NoPushTokenSource,
+    fun pushTokenRegistrar(@ApplicationContext context: Context, api: TanyCollectApi): PushTokenRegistrar = BackendPushTokenRegistrar(
+        source = FirebasePushTokenSource(context),
         registerCall = { api.registerDevice(it) },
         unregisterCall = { api.unregisterDevice(it) },
+        language = AppLanguage,
     )
 
     @Provides

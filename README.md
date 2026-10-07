@@ -102,7 +102,13 @@ Contract fixtures: `core/model/src/test/resources/fixtures/real/` — captured f
 FR / EN / AR (MSA, full RTL, brand names untranslated, identifiers LTR-isolated) · Africa/Casablanca for every
 business time · white studio for product images in both themes · money as integer centimes, exact amounts ·
 no automatic retry of any mutation · push via FCM (`POST/DELETE /collect/devices`, `platform:"android"`;
-`BackendPushTokenRegistrar`, Firebase token source in the notifications slice).
+parity with TANY Collect iOS — backend `docs/ANDROID-PUSH.md`): token registered after sign-in, at each launch, on
+`onNewToken` and language change; foreground pushes shown once (`TanyCollectMessagingService`); a tap is kept by
+`MainViewModel` through session restore, OTP sign-in and point choice, then opened by the shell of the active point
+(`CollectPushRouting`: server `deeplink`, else the centre; a notification of ANOTHER point never opens its operation and
+is marked read on its own point). Channels `operations` · `returns_deposits` · `account`. Permission asked in context
+(Today once after sign-in, notification centre), never at launch. Firebase config per environment, never committed:
+`app/src/staging/google-services.json` (package `ma.tany.collect.staging`, project TANY Staging); no file ⇒ no push.
 
 ## Authorization (canonical backend model)
 

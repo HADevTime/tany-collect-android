@@ -843,4 +843,15 @@
     <string name="deposit_late_reason_next_delayed">The late return disrupted the next booking.</string>
     <string name="deposit_late_reason_next_lost">The item was not returned in time for the next booking.</string>
     <string name="row_exception_deposit_returned">Deposit handed back · %1$s</string>
+    <string name="push_channel_operations">Operations</string>
+    <string name="push_channel_operations_description">New booking, cancelled booking, item to prepare.</string>
+    <string name="push_channel_returns_deposits">Returns and deposits</string>
+    <string name="push_channel_returns_deposits_description">Deposit to hand back to the customer, TANY decision.</string>
+    <string name="push_channel_account">Earnings and settlement</string>
+    <string name="push_channel_account_description">Bonus, TANY agent visit, settlement to confirm.</string>
+    <string name="push_permission_title">Be notified at the right time</string>
+    <string name="push_permission_today_message">TANY Collect lets you know about a new booking, a cancellation or a deposit to hand back — even when the app is closed.</string>
+    <string name="push_permission_centre_message">Turn on notifications to hear about your point’s operations, even when the app is closed.</string>
+    <string name="push_permission_enable">Turn on notifications</string>
+    <string name="push_permission_settings">Open settings</string>
 </resources>

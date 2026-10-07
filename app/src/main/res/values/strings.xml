@@ -856,4 +856,16 @@
     <string name="deposit_late_reason_next_delayed">Le retard a perturbé la réservation suivante.</string>
     <string name="deposit_late_reason_next_lost">L’objet n’a pas été rendu à temps pour la réservation suivante.</string>
     <string name="row_exception_deposit_returned">Caution remise · %1$s</string>
+    <!-- Push notifications (FCM): channels + contextual permission. Push text itself comes from the server. -->
+    <string name="push_channel_operations">Opérations</string>
+    <string name="push_channel_operations_description">Nouvelle réservation, réservation annulée, objet à préparer.</string>
+    <string name="push_channel_returns_deposits">Retours et cautions</string>
+    <string name="push_channel_returns_deposits_description">Caution à rendre au client, décision de TANY.</string>
+    <string name="push_channel_account">Revenus et règlement</string>
+    <string name="push_channel_account_description">Bonus, passage de l’agent TANY, règlement à confirmer.</string>
+    <string name="push_permission_title">Être prévenu au bon moment</string>
+    <string name="push_permission_today_message">TANY Collect vous prévient d’une nouvelle réservation, d’une annulation ou d’une caution à rendre — même quand l’app est fermée.</string>
+    <string name="push_permission_centre_message">Activez les notifications pour être prévenu des opérations de votre point, même quand l’app est fermée.</string>
+    <string name="push_permission_enable">Activer les notifications</string>
+    <string name="push_permission_settings">Ouvrir les réglages</string>
 </resources>

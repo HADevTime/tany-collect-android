@@ -1,5 +1,6 @@
 package ma.tany.collect.feature.booking
 
+import ma.tany.collect.core.push.PushEvents
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
@@ -198,8 +199,21 @@ class BookingDetailViewModel @Inject constructor(
     private val photos: OperationPhotos,
     val endpoint: ApiEndpoint,
     savedStateHandle: SavedStateHandle,
+    pushEvents: PushEvents = PushEvents(),
 ) : ViewModel() {
     val bookingId: String = checkNotNull(savedStateHandle["bookingId"])
+
+    /** Point of the last read: a push about THIS booking (cancelled, asset replaced, deposit…) re-reads it. */
+    private var lastPoint: String? = null
+
+    init {
+        viewModelScope.launch {
+            pushEvents.received.collect { push ->
+                val point = lastPoint ?: return@collect
+                if (push.bookingId == bookingId || push.deepLink?.endsWith("/$bookingId") == true) reload(point)
+            }
+        }
+    }
 
     /** Opened from the Home hero CTA: show the guided flow first (only where [detailMode] allows it). */
     val startFlow: Boolean = savedStateHandle.get<Boolean>("start") ?: false
@@ -212,6 +226,7 @@ class BookingDetailViewModel @Inject constructor(
     private var pendingPhoto: File? = null
 
     fun load(pointId: String) {
+        lastPoint = pointId
         _state.value = LoadState.Loading
         viewModelScope.launch { _state.value = repository.booking(bookingId, pointId).toLoadState() }
     }

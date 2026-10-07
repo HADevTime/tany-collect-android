@@ -45,11 +45,17 @@ export function parseBadging(output) {
   return { packageName: field('name'), versionCode: Number(field('versionCode')), versionName: field('versionName') };
 }
 
-/** `apksigner verify --print-certs`: one signer only, returns its certificate SHA-256 + DN. */
+/**
+ * `apksigner verify --print-certs`: distinct signer certificates (SHA-256) + first DN. The line prefix varies with
+ * build-tools / signature scheme ("Signer #1 certificate …", "Signer (minSdkVersion=…, maxSdkVersion=…) certificate …"),
+ * so any "… certificate SHA-256 digest:" line counts, except the Source Stamp (not the app signing key). The same key
+ * listed for several SDK ranges counts once; a second / rotated key stays a second signer (refused by validateApk).
+ */
 export function parseSigners(output) {
-  const digests = [...output.matchAll(/Signer #\d+ certificate SHA-256 digest: ([0-9a-f]+)/gi)].map((m) => m[1]);
-  const dn = output.match(/Signer #\d+ certificate DN: (.*)/)?.[1] ?? '';
-  return { digests: digests.map(normalizeFingerprint), dn };
+  const lines = String(output).split(/\r?\n/).filter((l) => !/^\s*Source Stamp/i.test(l));
+  const digests = lines.map((l) => l.match(/certificate SHA-256 digest: ([0-9a-f]{64})\s*$/i)?.[1]).filter(Boolean);
+  const dn = lines.map((l) => l.match(/certificate DN: (.*)$/)?.[1]).find(Boolean)?.trim() ?? '';
+  return { digests: [...new Set(digests.map(normalizeFingerprint))], dn };
 }
 
 /** "0.1.0-staging" → "0.1.0" (the page shows the product version; the variant is implicit on beta.tany.ma). */
@@ -206,7 +212,9 @@ async function main() {
     if (!env[key]) throw new Error(`Missing ${key}`);
   }
   const info = parseBadging(execFileSync(buildTool('aapt2'), ['dump', 'badging', env.BETA_APK], { encoding: 'utf8' }));
-  const signers = parseSigners(execFileSync(buildTool('apksigner'), ['verify', '--print-certs', env.BETA_APK], { encoding: 'utf8' }));
+  const certs = execFileSync(buildTool('apksigner'), ['verify', '--print-certs', env.BETA_APK], { encoding: 'utf8' });
+  console.log(`apksigner --print-certs (public certificate info):\n${certs}`);
+  const signers = parseSigners(certs);
   const entry = await publish({
     appKey: env.BETA_APP,
     apk: readFileSync(env.BETA_APK),

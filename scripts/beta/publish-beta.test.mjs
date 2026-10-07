@@ -49,6 +49,25 @@ test('parses aapt2 badging and apksigner output', () => {
   assert.deepEqual(s, { digests: [CERT], dn: 'CN=TANY Staging' });
 });
 
+test('parses v3 per-SDK-range signer lines (one key listed twice = one signer), ignores the source stamp', () => {
+  const OTHER = 'cd'.repeat(32);
+  const v3 = [
+    'Signer (minSdkVersion=26, maxSdkVersion=32) certificate DN: CN=TANY tany STAGING (beta), O=TANY, C=MA',
+    `Signer (minSdkVersion=26, maxSdkVersion=32) certificate SHA-256 digest: ${CERT}`,
+    'Signer (minSdkVersion=33, maxSdkVersion=2147483647) certificate DN: CN=TANY tany STAGING (beta), O=TANY, C=MA',
+    `Signer (minSdkVersion=33, maxSdkVersion=2147483647) certificate SHA-256 digest: ${CERT}\r`,
+    `Source Stamp Signer certificate SHA-256 digest: ${OTHER}`,
+    '',
+  ].join('\n');
+  assert.deepEqual(parseSigners(v3), { digests: [CERT], dn: 'CN=TANY tany STAGING (beta), O=TANY, C=MA' });
+  assert.deepEqual(validateApk('tany', info(5), parseSigners(v3), CERT), []);
+  // A second (rotated) key is still a second signer: refused.
+  const rotated = `${v3}Signer (minSdkVersion=33, maxSdkVersion=2147483647) certificate SHA-256 digest: ${OTHER}\n`;
+  assert.match(validateApk('tany', info(5), parseSigners(rotated), CERT).join(), /exactly one signer, got 2/);
+  // Nothing parsable: refused (never published).
+  assert.match(validateApk('tany', info(5), parseSigners('Verifies\n'), CERT).join(), /exactly one signer, got 0/);
+});
+
 test('refuses PROD packages, debug keys and an unexpected certificate', () => {
   assert.match(validateApk('tany', info(5, 'ma.tany.client'), signers, CERT).join(), /only STAGING/);
   assert.match(validateApk('collect', info(5), signers, CERT).join(), /ma\.tany\.collect\.staging/);

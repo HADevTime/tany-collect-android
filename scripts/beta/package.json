@@ -1,0 +1,9 @@
+{
+  "name": "tany-collect-android-beta-publish",
+  "private": true,
+  "type": "module",
+  "description": "Publishes the STAGING APK to beta.tany.ma (CI only). Identical in tany-android and tany-collect-android.",
+  "dependencies": {
+    "@vercel/blob": "2.8.1"
+  }
+}

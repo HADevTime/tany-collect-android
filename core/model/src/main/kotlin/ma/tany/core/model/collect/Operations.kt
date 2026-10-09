@@ -201,6 +201,8 @@ data class MerchantBookingDetail(
     val photos: List<MerchantPhoto> = emptyList(),
     val history: List<HistoryEntry> = emptyList(),
     val requiresTanyIntervention: Boolean = false,
+    /** Additive (rental kit V1): frozen kit snapshot + recorded checks; null = older booking / module OFF. */
+    val kit: RentalKit? = null,
 ) {
     fun effectiveUsagePeriod(): UsagePeriod = usagePeriod ?: UsagePeriod(usageDate, usageEndDate ?: usageDate, dayCount)
 }

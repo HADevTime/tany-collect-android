@@ -854,4 +854,35 @@
     <string name="push_permission_centre_message">Turn on notifications to hear about your point’s operations, even when the app is closed.</string>
     <string name="push_permission_enable">Turn on notifications</string>
     <string name="push_permission_settings">Open settings</string>
+
+    <!-- Rental kit V1 (accessories + TANY transport bag) -->
+    <string name="kit_item_with_quantity">%1$s ×%2$d</string>
+    <string name="kit_type_bag">TANY carry bag</string>
+    <string name="kit_handover_title">Kit to hand over</string>
+    <string name="kit_handover_hint">Everything is ticked: tap an element only if it is not handed over.</string>
+    <string name="kit_handover_all">Everything handed over</string>
+    <string name="kit_handover_missing_note">The handover can go ahead: TANY is informed of the discrepancy.</string>
+    <string name="kit_state_handed_over">Handed over</string>
+    <string name="kit_state_not_handed_over">Not handed over</string>
+    <string name="kit_state_returned">Returned</string>
+    <string name="kit_state_present">Present</string>
+    <string name="kit_state_missing">Missing</string>
+    <string name="kit_state_damaged">Damaged</string>
+    <string name="kit_return_title">Returned kit</string>
+    <string name="kit_return_all">Item and accessories returned</string>
+    <string name="kit_all_present">Everything is here</string>
+    <string name="kit_return_issue_note">A missing element never blocks the return: TANY will review it.</string>
+    <string name="kit_overview_title">Rental kit</string>
+    <plurals name="kit_not_handed_over_count">
+        <item quantity="one">%d element not handed over</item>
+        <item quantity="other">%d elements not handed over</item>
+    </plurals>
+    <plurals name="kit_return_to_check">
+        <item quantity="one">%d item to check</item>
+        <item quantity="other">%d items to check</item>
+    </plurals>
+    <plurals name="kit_items_count">
+        <item quantity="one">%d element</item>
+        <item quantity="other">%d elements</item>
+    </plurals>
 </resources>

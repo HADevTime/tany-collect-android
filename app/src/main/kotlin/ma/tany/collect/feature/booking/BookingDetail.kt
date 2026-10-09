@@ -127,12 +127,15 @@ import ma.tany.core.designsystem.component.tanyFieldColors
 import ma.tany.core.designsystem.format.ltrIsolated
 import ma.tany.core.designsystem.theme.TanyTheme
 import ma.tany.core.model.collect.IncidentBody
+import ma.tany.core.model.collect.KitCheckState
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.MerchantDepositAction
 import ma.tany.core.model.collect.MerchantPhase
 import ma.tany.core.model.collect.OperationKind
 import ma.tany.core.model.collect.ReturnBody
 import ma.tany.core.model.collect.ReturnIncident
+import ma.tany.core.model.collect.handoverChecks
+import ma.tany.core.model.collect.returnChecks
 import ma.tany.core.model.common.AssetCondition
 import ma.tany.core.model.common.IncidentType
 import ma.tany.core.model.common.MoneyAmount
@@ -161,7 +164,14 @@ data class ReturnForm(
     val missingAccessories: Set<String> = emptySet(),
     val incidentType: IncidentType? = null,
     val incidentDescription: String = "",
-)
+    /** Rental kit V1: elements returned MISSING / DAMAGED (absent = present). Used instead of [missingAccessories] with a kit. */
+    val kitIssues: Map<String, KitCheckState> = emptyMap(),
+) {
+    /** The statement reports something (accessory, kit element or incident): never declared « good ». */
+    val reportsIssue: Boolean
+        get() = incidentType != null || missingAccessories.isNotEmpty() ||
+            kitIssues.values.any { it == KitCheckState.MISSING || it == KitCheckState.DAMAGED }
+}
 
 data class PickupUiState(
     val busy: PickupGesture? = null,
@@ -184,6 +194,8 @@ data class PickupUiState(
      * requires (and checks) the photo for the handover / return statement.
      */
     val photosAccepted: Boolean = false,
+    /** Rental kit V1 — handover: elements the merchant notes as NOT handed over (everything is handed over by default). */
+    val kitNotHandedOver: Set<String> = emptySet(),
 )
 
 /**
@@ -349,9 +361,19 @@ class BookingDetailViewModel @Inject constructor(
      * without it the server would store « good » even after a « problem » photo.
      */
     fun handover(pointId: String, onDone: () -> Unit) {
-        val condition = (_state.value as? LoadState.Loaded)?.value?.pickup?.condition
+        val booking = (_state.value as? LoadState.Loaded)?.value
+        val condition = booking?.pickup?.condition
             ?.takeIf { it == AssetCondition.GOOD || it == AssetCondition.ISSUE_REPORTED }
-        send(pointId, PickupGesture.HANDOVER, onDone) { operations.handover(bookingId, pointId, condition) }
+        // Rental kit: what physically goes out (differences only; `checks: []` = everything handed over).
+        val kit = booking?.kit?.handoverChecks(_pickup.value.kitNotHandedOver)
+        send(pointId, PickupGesture.HANDOVER, onDone) {
+            operations.handover(bookingId, pointId, condition, kit).also { if (it is ApiResult.Success) _pickup.update { s -> s.copy(kitNotHandedOver = emptySet()) } }
+        }
+    }
+
+    /** Handover kit checklist: one tap notes an element as not handed over, a second tap restores it. */
+    fun toggleHandoverKitItem(itemId: String) = _pickup.update {
+        it.copy(kitNotHandedOver = if (itemId in it.kitNotHandedOver) it.kitNotHandedOver - itemId else it.kitNotHandedOver + itemId)
     }
 
     private fun send(
@@ -393,11 +415,14 @@ class BookingDetailViewModel @Inject constructor(
         // itself reports an issue (a missing accessory or an incident is never declared « good »).
         val recorded = (_state.value as? LoadState.Loaded)?.value?.returnInfo?.condition
             ?.takeIf { it == AssetCondition.GOOD || it == AssetCondition.ISSUE_REPORTED }
+        // Rental kit: the frozen kit replaces the historical accessory names (differences only, handed-over elements).
+        val kit = (_state.value as? LoadState.Loaded)?.value?.kit
         val body = ReturnBody(
             collectPointId = pointId,
-            condition = if (form.incidentType != null || form.missingAccessories.isNotEmpty()) AssetCondition.ISSUE_REPORTED else recorded ?: form.condition,
-            missingAccessories = form.missingAccessories.toList(),
+            condition = if (form.reportsIssue) AssetCondition.ISSUE_REPORTED else recorded ?: form.condition,
+            missingAccessories = if (kit != null) emptyList() else form.missingAccessories.toList(),
             incident = form.incidentType?.let { ReturnIncident(it, form.incidentDescription.trim().take(INCIDENT_DESCRIPTION_MAX).ifBlank { null }) },
+            kit = kit?.returnChecks(form.kitIssues),
         )
         send(pointId, PickupGesture.RETURN_STATEMENT, onDone) {
             operations.declareReturn(bookingId, body).also { if (it is ApiResult.Success) _pickup.update { s -> s.copy(returnForm = ReturnForm()) } }
@@ -521,7 +546,11 @@ fun BookingDetailScreen(
                             ConfirmationRequest(
                                 id = "pickup-handover",
                                 title = context.getString(R.string.pickup_handover_title),
-                                message = context.getString(R.string.pickup_handover_message_named, booking.product.name, booking.customer.shortName),
+                                message = context.getString(R.string.pickup_handover_message_named, booking.product.name, booking.customer.shortName) +
+                                    // Rental kit: elements noted as not handed over are restated (never blocking).
+                                    pickup.kitNotHandedOver.size.takeIf { booking.kit != null && it > 0 }?.let { n ->
+                                        "\n\n" + context.resources.getQuantityString(R.plurals.kit_not_handed_over_count, n, n)
+                                    }.orEmpty(),
                                 confirmLabel = context.getString(R.string.pickup_handover_cta),
                                 icon = DsR.drawable.ic_tany_pickup,
                             ),
@@ -542,10 +571,10 @@ fun BookingDetailScreen(
                         )
                     },
                     updateReturn = viewModel::updateReturnForm,
+                    toggleHandoverKitItem = viewModel::toggleHandoverKitItem,
                     declareReturn = {
                         val form = pickup.returnForm
-                        val issue = form.incidentType != null || form.missingAccessories.isNotEmpty() ||
-                            booking.returnInfo?.condition == AssetCondition.ISSUE_REPORTED
+                        val issue = form.reportsIssue || booking.returnInfo?.condition == AssetCondition.ISSUE_REPORTED
                         confirmation.show(
                             ConfirmationRequest(
                                 id = "return-statement",
@@ -623,6 +652,7 @@ internal class PickupActions(
     val handBackDeposit: (MoneyAmount) -> Unit,
     val updateReturn: ((ReturnForm) -> ReturnForm) -> Unit,
     val declareReturn: () -> Unit,
+    val toggleHandoverKitItem: (String) -> Unit = {},
 )
 
 /** Screen-to-screen motion of the booking: a short horizontal slide + fade (mirrored in RTL by the layout). */
@@ -661,6 +691,8 @@ private fun Overview(booking: MerchantBookingDetail, endpoint: ApiEndpoint, onSt
         CustomerCard(booking, endpoint)
         MoneyCard(booking)
         ScheduleCard(booking)
+        // Rental kit: frozen snapshot + what was recorded at the handover / return (read-only).
+        booking.kit?.takeIf { it.items.isNotEmpty() }?.let { KitOverviewCard(it, endpoint) }
         BookingDetailsSections(booking, endpoint)
     }
 }
@@ -898,10 +930,23 @@ private val RETURN_INCIDENT_TYPES = listOf(IncidentType.DAMAGED, IncidentType.MI
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun ReturnStatementForm(booking: MerchantBookingDetail, form: ReturnForm, update: ((ReturnForm) -> ReturnForm) -> Unit) {
+internal fun ReturnStatementForm(booking: MerchantBookingDetail, form: ReturnForm, endpoint: ApiEndpoint, update: ((ReturnForm) -> ReturnForm) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val accessories = booking.product.includedAccessories
-        if (accessories.isNotEmpty()) {
+        val kit = booking.kit?.takeIf { it.items.isNotEmpty() }
+        if (kit != null) {
+            // « Kit rendu »: the frozen kit (with the TANY transport bag) replaces the historical accessory list.
+            ReturnKitCheck(
+                kit = kit,
+                issues = form.kitIssues,
+                endpoint = endpoint,
+                onState = { id, state ->
+                    update { f -> f.copy(kitIssues = if (state == KitCheckState.PRESENT) f.kitIssues - id else f.kitIssues + (id to state)) }
+                },
+                onAllPresent = { update { f -> f.copy(kitIssues = emptyMap()) } },
+            )
+            TanyDivider(Modifier.padding(vertical = 4.dp))
+        } else if (accessories.isNotEmpty()) {
             Text(stringResource(R.string.return_missing_title), style = TanyTheme.typography.label, color = TanyTheme.colors.textMuted)
             Column {
                 accessories.forEach { name ->

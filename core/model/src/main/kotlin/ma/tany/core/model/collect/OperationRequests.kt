@@ -34,8 +34,9 @@ data class AssetScanBody(val collectPointId: String, val purpose: QrPurpose, val
 @Serializable
 data class PaymentBody(val collectPointId: String, val amountReceived: MoneyAmount)
 
+/** [kit] (rental kit V1, additive): what was handed over — differences only (`checks: []` = everything); null = historical body. */
 @Serializable
-data class HandoverBody(val collectPointId: String, val condition: AssetCondition? = null)
+data class HandoverBody(val collectPointId: String, val condition: AssetCondition? = null, val kit: KitChecks? = null)
 
 @Serializable
 data class ReturnIncident(val type: IncidentType, val description: String? = null)
@@ -46,6 +47,11 @@ data class ReturnBody(
     val condition: AssetCondition,
     @kotlinx.serialization.EncodeDefault val missingAccessories: List<String> = emptyList(),
     val incident: ReturnIncident? = null,
+    /**
+     * Rental kit V1 (additive): elements returned MISSING / DAMAGED (handed-over elements only, differences only). When
+     * present the server uses it instead of [missingAccessories]; a difference becomes TANY's incident, never blocking.
+     */
+    val kit: KitChecks? = null,
 )
 
 @Serializable

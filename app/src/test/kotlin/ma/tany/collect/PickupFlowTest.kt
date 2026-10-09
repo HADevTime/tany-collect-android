@@ -15,6 +15,8 @@ import ma.tany.core.model.collect.ActivityResponse
 import ma.tany.core.model.collect.AssetScanBody
 import ma.tany.core.model.collect.AssetsResponse
 import ma.tany.core.model.collect.CollectMe
+import ma.tany.core.model.collect.KitCheckState
+import ma.tany.core.model.collect.KitChecks
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.MerchantBookingResponse
 import ma.tany.core.model.collect.OperationKind
@@ -117,8 +119,8 @@ class PickupFlowTest {
             return result
         }
 
-        override suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail> {
-            calls += "handover"; lastHandoverCondition = condition
+        override suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?, kit: KitChecks?): ApiResult<MerchantBookingDetail> {
+            calls += "handover"; lastHandoverCondition = condition; lastHandoverKit = kit
             return result
         }
 
@@ -133,6 +135,7 @@ class PickupFlowTest {
         }
 
         var lastHandoverCondition: AssetCondition? = null
+        var lastHandoverKit: KitChecks? = null
         var lastIncident: ma.tany.core.model.collect.IncidentBody? = null
         var nudgeResult: ApiResult<ma.tany.core.model.collect.NudgeResponse> = ApiResult.Failure(ApiError.Unauthorized)
 
@@ -411,5 +414,55 @@ class PickupFlowTest {
         val vm = detailVm(FakeCollect(ApiResult.Success(returning)), ops)
         vm.declareReturn("cp1") {}
         assertEquals(AssetCondition.ISSUE_REPORTED, ops.lastReturn?.condition)
+    }
+
+    // ——— Rental kit V1: what physically goes out and comes back (differences only, never blocking) ———
+
+    private fun kitBooking(name: String): MerchantBookingDetail = TanyJson.decodeFromString<MerchantBookingResponse>(
+        File("../core/model/src/test/resources/fixtures/real/$name.json").readText(),
+    ).booking
+
+    @Test
+    fun handoverSendsTheKitDifferencesAndResetsTheChecklist() = runTest {
+        val pickup = kitBooking("booking_detail_kit_pickup")
+        val pouch = pickup.kit!!.items[1].id
+        val ops = FakeOps().apply { result = ApiResult.Success(pickup) }
+        val vm = detailVm(FakeCollect(ApiResult.Success(pickup)), ops)
+        vm.toggleHandoverKitItem(pouch)
+        vm.toggleHandoverKitItem("x")
+        vm.toggleHandoverKitItem("x") // second tap restores it
+        assertEquals(setOf(pouch), vm.pickup.value.kitNotHandedOver)
+        vm.handover("cp1") {}
+        assertEquals(listOf(pouch), ops.lastHandoverKit!!.checks.map { it.itemId })
+        assertEquals(KitCheckState.MISSING, ops.lastHandoverKit!!.checks.single().state)
+        assertTrue(vm.pickup.value.kitNotHandedOver.isEmpty())
+
+        // Everything handed over ⇒ `checks: []`; a booking without kit keeps the historical body.
+        vm.handover("cp1") {}
+        assertTrue(ops.lastHandoverKit!!.checks.isEmpty())
+        val bare = FakeOps().apply { result = ApiResult.Success(booking) }
+        detailVm(FakeCollect(ApiResult.Success(booking)), bare).handover("cp1") {}
+        assertNull(bare.lastHandoverKit)
+    }
+
+    @Test
+    fun returnStatementSendsTheKitInsteadOfAccessoryNames() = runTest {
+        val returning = kitBooking("booking_detail_kit_return")
+        val kit = returning.kit!!
+        val notHanded = kit.items.single { !it.handedOver }.id
+        val bag = kit.items.last().id
+        val ops = FakeOps().apply { result = ApiResult.Success(returning) }
+        val vm = detailVm(FakeCollect(ApiResult.Success(returning)), ops)
+        vm.updateReturnForm { it.copy(kitIssues = mapOf(bag to KitCheckState.DAMAGED, notHanded to KitCheckState.MISSING), missingAccessories = setOf("Câbles")) }
+        vm.declareReturn("cp1") {}
+        val body = ops.lastReturn!!
+        assertEquals(AssetCondition.ISSUE_REPORTED, body.condition) // a kit difference is never declared « good »
+        assertTrue(body.missingAccessories.isEmpty())
+        assertEquals(listOf(bag), body.kit!!.checks.map { it.itemId }) // never an element that was not handed over
+        assertEquals(KitCheckState.DAMAGED, body.kit!!.checks.single().state)
+        assertTrue(vm.pickup.value.returnForm.kitIssues.isEmpty()) // reset after success
+
+        vm.declareReturn("cp1") {}
+        assertTrue(ops.lastReturn!!.kit!!.checks.isEmpty()) // « Tout est présent »
     }
 }

@@ -4,6 +4,7 @@ import ma.tany.core.model.collect.AssetScanBody
 import ma.tany.core.model.collect.DepositRefundBody
 import ma.tany.core.model.collect.CollectPointBody
 import ma.tany.core.model.collect.HandoverBody
+import ma.tany.core.model.collect.KitChecks
 import ma.tany.core.model.collect.IncidentBody
 import ma.tany.core.model.collect.MerchantBookingDetail
 import ma.tany.core.model.collect.NudgeResponse
@@ -42,7 +43,7 @@ interface CollectOperationsRepository {
     suspend fun confirmPayment(bookingId: String, collectPointId: String, amount: MoneyAmount): ApiResult<MerchantBookingDetail>
 
     /** Merchant half of the pickup: the customer alone then moves the booking to COLLECTED. */
-    suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail>
+    suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?, kit: KitChecks? = null): ApiResult<MerchantBookingDetail>
 
     /**
      * Merchant return statement (condition, missing accessories, incident). The customer alone then confirms the return
@@ -85,8 +86,8 @@ class DefaultCollectOperationsRepository(private val api: TanyCollectApi) : Coll
     override suspend fun confirmPayment(bookingId: String, collectPointId: String, amount: MoneyAmount): ApiResult<MerchantBookingDetail> =
         apiCall { api.confirmPayment(bookingId, PaymentBody(collectPointId, amount)).booking }
 
-    override suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?): ApiResult<MerchantBookingDetail> =
-        apiCall { api.handover(bookingId, HandoverBody(collectPointId, condition)).booking }
+    override suspend fun handover(bookingId: String, collectPointId: String, condition: AssetCondition?, kit: KitChecks?): ApiResult<MerchantBookingDetail> =
+        apiCall { api.handover(bookingId, HandoverBody(collectPointId, condition, kit)).booking }
 
     override suspend fun declareReturn(bookingId: String, body: ReturnBody): ApiResult<MerchantBookingDetail> =
         apiCall { api.declareReturn(bookingId, body).booking }

@@ -1,0 +1,308 @@
+{
+ "booking": {
+  "id": "49d7e78f-6236-4d47-a66a-11a1559aadee",
+  "reference": "TNY-4662",
+  "kind": "RETURN",
+  "phase": "return_awaiting_customer",
+  "scheduledAt": "2026-11-20T17:00:00.000Z",
+  "windowEnd": null,
+  "returnDeadline": "2026-11-20T17:00:00.000Z",
+  "usageDate": "2026-11-20",
+  "usageEndDate": "2026-11-20",
+  "dayCount": 1,
+  "returnWindowStart": "2026-11-20T15:00:00.000Z",
+  "dailyPrice": 80,
+  "usagePeriod": {
+   "startDate": "2026-11-20",
+   "endDate": "2026-11-20",
+   "dayCount": 1
+  },
+  "pricing": {
+   "dailyPrice": 80,
+   "dayCount": 1,
+   "rentalTotal": 80,
+   "deposit": 300,
+   "currency": "MAD",
+   "totalDueAtPickup": 380
+  },
+  "pickupWindowStart": "2026-11-20T07:00:00.000Z",
+  "pickupWindowEnd": "2026-11-20T09:00:00.000Z",
+  "customer": {
+   "shortName": "Amina B.",
+   "phoneLast4": "0851",
+   "trusted": null,
+   "firstName": "Amina",
+   "identity": {
+    "verified": false,
+    "label": null,
+    "profilePhotoUrl": null
+   }
+  },
+  "product": {
+   "id": "prod-kit",
+   "name": "Démarreur de voiture",
+   "image": "/images/jumpstarter.png",
+   "catalogImageUrl": null,
+   "includedAccessories": [
+    "Câbles de démarrage",
+    "Pochette de rangement"
+   ]
+  },
+  "assetCode": "KIT001",
+  "rentalAmount": 80,
+  "depositAmount": 300,
+  "depositRefundAmount": null,
+  "depositAction": "NONE",
+  "depositHeadline": "Caution détenue : 300 DH",
+  "depositLatePenaltyAmount": null,
+  "depositLatePenaltyReasonCode": null,
+  "depositRefundedAmount": 0,
+  "depositState": "HELD",
+  "currency": "MAD",
+  "lateMinutes": null,
+  "nextBookingAt": null,
+  "waitingSince": "2026-11-20T09:15:00.000Z",
+  "waitingMinutes": 0,
+  "customerConfirmationOverdue": false,
+  "updatedAt": "2026-11-20T09:15:00.000Z",
+  "completedAt": "2026-11-20T07:16:00.000Z",
+  "status": "COLLECTED",
+  "kit": {
+   "items": [
+    {
+     "id": "852858a1-df42-40be-917c-a8e99e4d832d",
+     "type": "ACCESSORY",
+     "name": "Câbles de démarrage",
+     "description": "Pinces rouge et noire",
+     "image": null,
+     "quantity": 2,
+     "required": true,
+     "position": 0,
+     "handedOver": true,
+     "pickupState": "PRESENT",
+     "customerPickupState": "PRESENT",
+     "returnState": "DAMAGED"
+    },
+    {
+     "id": "74088931-5000-44a0-b5ba-4e0c3156ace3",
+     "type": "ACCESSORY",
+     "name": "Pochette de rangement",
+     "description": "Pour ranger les câbles",
+     "image": "/images/kit/pochette.png",
+     "quantity": 1,
+     "required": false,
+     "position": 1,
+     "handedOver": false,
+     "pickupState": "MISSING",
+     "customerPickupState": null,
+     "returnState": null
+    },
+    {
+     "id": "7b06931a-57fb-4ff8-be5d-134621c4b32e",
+     "type": "TRANSPORT_BAG",
+     "name": "Sac de transport TANY",
+     "description": "Pour transporter et protéger l'objet",
+     "image": "/images/kit/tany-transport-bag.png",
+     "quantity": 1,
+     "required": true,
+     "position": 2,
+     "handedOver": true,
+     "pickupState": "PRESENT",
+     "customerPickupState": "PRESENT",
+     "returnState": "PRESENT"
+    }
+   ],
+   "count": 3,
+   "totalQuantity": 4,
+   "expectedAtReturnCount": 2,
+   "pickup": {
+    "checkedAt": "2026-11-20T07:15:00.000Z",
+    "allPresent": false,
+    "missingCount": 1
+   },
+   "customerPickup": {
+    "checkedAt": "2026-11-20T07:16:00.000Z",
+    "allPresent": true,
+    "reportedCount": 0
+   },
+   "return": {
+    "checkedAt": "2026-11-20T09:15:00.000Z",
+    "allPresent": false,
+    "issueCount": 1
+   }
+  },
+  "asset": {
+   "id": "asset-kit-1",
+   "code": "KIT001",
+   "status": "WITH_CUSTOMER",
+   "condition": "good",
+   "nextBookingAt": null,
+   "nextBookingReference": null,
+   "nextBookingWindowEnd": null,
+   "nextBookingUsagePeriod": null,
+   "turnaroundMinutes": 90
+  },
+  "rental": {
+   "startDate": "2026-11-20",
+   "endDate": "2026-11-20",
+   "dayCount": 1,
+   "dailyPrice": 80,
+   "total": 80,
+   "currency": "MAD"
+  },
+  "pickup": {
+   "windowStart": "2026-11-20T07:00:00.000Z",
+   "windowEnd": "2026-11-20T09:00:00.000Z",
+   "startedAt": "2026-11-20T07:15:00.000Z",
+   "completionDeadline": null,
+   "clientVerifiedAt": "2026-11-20T07:15:00.000Z",
+   "assetVerifiedAt": "2026-11-20T07:15:00.000Z",
+   "photoCount": 1,
+   "condition": "good",
+   "merchantConfirmedAt": "2026-11-20T07:15:00.000Z",
+   "customerConfirmedAt": "2026-11-20T07:16:00.000Z",
+   "collectedAt": "2026-11-20T07:16:00.000Z"
+  },
+  "return": {
+   "deadline": "2026-11-20T17:00:00.000Z",
+   "windowStart": "2026-11-20T15:00:00.000Z",
+   "clientVerifiedAt": "2026-11-20T09:15:00.000Z",
+   "assetVerifiedAt": "2026-11-20T09:15:00.000Z",
+   "photoCount": 1,
+   "condition": "issue_reported",
+   "incidentType": "DAMAGED",
+   "merchantConfirmedAt": "2026-11-20T09:15:00.000Z",
+   "customerConfirmedAt": null,
+   "returnedAt": null
+  },
+  "payment": {
+   "method": "CASH_AT_COLLECT_POINT",
+   "status": "PAID",
+   "paidAt": "2026-11-20T07:15:00.000Z",
+   "rentalAmount": 80,
+   "depositAmount": 300,
+   "totalDueAtPickup": 380
+  },
+  "deposit": {
+   "status": "HELD",
+   "amount": 300,
+   "expectedRefundAmount": 300,
+   "merchantRefundConfirmedAt": null,
+   "customerRefundConfirmedAt": null,
+   "customerPaidConfirmedAt": "2026-11-20T07:16:00.000Z",
+   "state": "HELD",
+   "merchantAction": "NONE",
+   "headline": "Caution détenue : 300 DH",
+   "heldAmount": 300,
+   "toRefundAmount": 0,
+   "refundedAmount": 0,
+   "retainedAmount": 0,
+   "currency": "MAD",
+   "latePenaltyAmount": null,
+   "latePenaltyReasonCode": null,
+   "refundableAmount": 0,
+   "handBackMode": null,
+   "refundPickup": null
+  },
+  "incidents": [],
+  "photos": [
+   {
+    "id": "photo-49d7e78f-6236-4d47-a66a-11a1559aadee-PICKUP",
+    "type": "PICKUP",
+    "condition": "good",
+    "url": "/api/photos/photo-49d7e78f-6236-4d47-a66a-11a1559aadee-PICKUP/1791538320/yhl3QiHA2HqeIXqiW0rQIIpOVkYIDoV960m8YmGv3Dk",
+    "createdAt": "2026-10-09T08:31:32.145Z"
+   },
+   {
+    "id": "photo-49d7e78f-6236-4d47-a66a-11a1559aadee-RETURN",
+    "type": "RETURN",
+    "condition": "good",
+    "url": "/api/photos/photo-49d7e78f-6236-4d47-a66a-11a1559aadee-RETURN/1791538320/aRABqJsV861D_blXIKwhEMRf-reFjpmP9gEVx8rbT2g",
+    "createdAt": "2026-10-09T08:31:32.356Z"
+   }
+  ],
+  "history": [
+   {
+    "id": "d40111c8-914a-427c-8d0f-3365f2dab7b4",
+    "type": "BOOKING_CREATED",
+    "label": "Réservation créée",
+    "actor": "Client",
+    "actorRole": "CUSTOMER",
+    "at": "2026-10-09T08:31:32.122Z"
+   },
+   {
+    "id": "62fd3b9d-e7e3-47d5-bd5a-d97485ac2a44",
+    "type": "PICKUP_QR_VERIFIED",
+    "label": "QR client vérifié (collecte)",
+    "actor": "Vous",
+    "actorRole": "SELF",
+    "at": "2026-10-09T08:31:32.139Z"
+   },
+   {
+    "id": "34beebb9-4d09-4a8c-bd0d-431cc5bf52a6",
+    "type": "PICKUP_ASSET_VERIFIED",
+    "label": "Objet vérifié (collecte)",
+    "actor": "Vous",
+    "actorRole": "SELF",
+    "at": "2026-10-09T08:31:32.143Z"
+   },
+   {
+    "id": "3d4999e1-b726-4ed8-b748-caef120ef6ce",
+    "type": "PAYMENT_CONFIRMED",
+    "label": "Paiement et caution reçus",
+    "actor": "Vous",
+    "actorRole": "SELF",
+    "at": "2026-10-09T08:31:32.157Z"
+   },
+   {
+    "id": "85be71dc-7e19-47b4-9d89-4212499dcdcd",
+    "type": "PICKUP_CONFIRMED_MERCHANT",
+    "label": "Remise confirmée par le commerçant",
+    "actor": "Vous",
+    "actorRole": "SELF",
+    "at": "2026-10-09T08:31:32.239Z"
+   },
+   {
+    "id": "6772b26f-6191-4299-a87f-6a216e4a9b26",
+    "type": "PICKUP_CONFIRMED_CUSTOMER",
+    "label": "Réception confirmée par le client",
+    "actor": "Client",
+    "actorRole": "CUSTOMER",
+    "at": "2026-10-09T08:31:32.261Z"
+   },
+   {
+    "id": "13fce811-605c-4d11-983c-66ed25c36a88",
+    "type": "ASSET_COLLECTED",
+    "label": "Objet remis au client",
+    "actor": "Client",
+    "actorRole": "CUSTOMER",
+    "at": "2026-10-09T08:31:32.273Z"
+   },
+   {
+    "id": "fa025529-d1f0-43a5-b2de-4610eb667371",
+    "type": "RETURN_QR_VERIFIED",
+    "label": "QR client vérifié (retour)",
+    "actor": "Vous",
+    "actorRole": "SELF",
+    "at": "2026-10-09T08:31:32.320Z"
+   },
+   {
+    "id": "c3385211-de7f-450e-b7b5-adf2ac532cd0",
+    "type": "RETURN_ASSET_VERIFIED",
+    "label": "Objet vérifié (retour)",
+    "actor": "Vous",
+    "actorRole": "SELF",
+    "at": "2026-10-09T08:31:32.354Z"
+   },
+   {
+    "id": "cf19eddb-7323-4f3d-b397-2a531802948a",
+    "type": "RETURN_CONFIRMED_MERCHANT",
+    "label": "Réception de l'objet constatée",
+    "actor": "Vous",
+    "actorRole": "SELF",
+    "at": "2026-10-09T08:31:32.362Z"
+   }
+  ],
+  "requiresTanyIntervention": false
+ }
+}

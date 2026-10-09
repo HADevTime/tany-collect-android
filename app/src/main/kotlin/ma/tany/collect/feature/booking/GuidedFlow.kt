@@ -219,6 +219,10 @@ private fun PickupStepContent(step: PickupStep, booking: MerchantBookingDetail, 
             StepHeader(stringResource(R.string.flow_handover_title), stringResource(R.string.flow_handover_message))
             ObjectCard(booking, endpoint)
             CustomerCard(booking, endpoint)
+            // Rental kit: « Kit à remettre » — everything ticked, one tap per element not handed over.
+            booking.kit?.takeIf { it.items.isNotEmpty() }?.let { kit ->
+                HandoverKitChecklist(kit, ui.kitNotHandedOver, endpoint, actions.toggleHandoverKitItem)
+            }
             if (ui.incidentReported) {
                 TanyNotice(message = stringResource(R.string.incident_reported_continue), tone = TanyTone.WARNING, icon = DsR.drawable.ic_tany_shield)
             }
@@ -281,7 +285,7 @@ private fun ReturnStepContent(step: ReturnStep, booking: MerchantBookingDetail, 
         )
         ReturnStep.STATEMENT -> {
             StepHeader(stringResource(R.string.flow_statement_title), stringResource(R.string.flow_statement_message))
-            TanyCard { ReturnStatementForm(booking, ui.returnForm, actions.updateReturn) }
+            TanyCard { ReturnStatementForm(booking, ui.returnForm, endpoint, actions.updateReturn) }
             TanyButton(
                 stringResource(R.string.return_statement_action),
                 actions.declareReturn,

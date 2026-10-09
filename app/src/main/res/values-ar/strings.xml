@@ -886,4 +886,47 @@
     <string name="push_permission_centre_message">فعّل الإشعارات لتكون على علم بعمليات نقطتك، حتى عندما يكون التطبيق مغلقًا.</string>
     <string name="push_permission_enable">تفعيل الإشعارات</string>
     <string name="push_permission_settings">فتح الإعدادات</string>
+
+    <!-- Rental kit V1 (accessories + TANY transport bag) -->
+    <string name="kit_item_with_quantity">%1$s (%2$d)</string>
+    <string name="kit_type_bag">حقيبة النقل TANY</string>
+    <string name="kit_handover_title">الطقم الواجب تسليمه</string>
+    <string name="kit_handover_hint">كل العناصر محدَّدة: المس عنصرًا فقط إذا لم يُسلَّم.</string>
+    <string name="kit_handover_all">تم تسليم كل شيء</string>
+    <string name="kit_handover_missing_note">يبقى التسليم ممكنًا: يتم إبلاغ TANY بالفرق.</string>
+    <string name="kit_state_handed_over">تم التسليم</string>
+    <string name="kit_state_not_handed_over">لم يُسلَّم</string>
+    <string name="kit_state_returned">تم الإرجاع</string>
+    <string name="kit_state_present">موجود</string>
+    <string name="kit_state_missing">ناقص</string>
+    <string name="kit_state_damaged">متضرر</string>
+    <string name="kit_return_title">الطقم المُرجَع</string>
+    <string name="kit_return_all">تم إرجاع الغرض والملحقات</string>
+    <string name="kit_all_present">كل شيء موجود</string>
+    <string name="kit_return_issue_note">العنصر الناقص لا يمنع الإرجاع أبدًا: ستراجع TANY الأمر.</string>
+    <string name="kit_overview_title">طقم التأجير</string>
+    <plurals name="kit_not_handed_over_count">
+        <item quantity="zero">%d عنصر لم يُسلَّم</item>
+        <item quantity="one">عنصر واحد لم يُسلَّم</item>
+        <item quantity="two">عنصران لم يُسلَّما</item>
+        <item quantity="few">%d عناصر لم تُسلَّم</item>
+        <item quantity="many">%d عنصرًا لم يُسلَّم</item>
+        <item quantity="other">%d عنصر لم يُسلَّم</item>
+    </plurals>
+    <plurals name="kit_return_to_check">
+        <item quantity="zero">%d عنصر للتحقق</item>
+        <item quantity="one">عنصر واحد للتحقق</item>
+        <item quantity="two">عنصران للتحقق</item>
+        <item quantity="few">%d عناصر للتحقق</item>
+        <item quantity="many">%d عنصرًا للتحقق</item>
+        <item quantity="other">%d عنصر للتحقق</item>
+    </plurals>
+    <plurals name="kit_items_count">
+        <item quantity="zero">%d عنصر</item>
+        <item quantity="one">عنصر واحد</item>
+        <item quantity="two">عنصران</item>
+        <item quantity="few">%d عناصر</item>
+        <item quantity="many">%d عنصرًا</item>
+        <item quantity="other">%d عنصر</item>
+    </plurals>
 </resources>

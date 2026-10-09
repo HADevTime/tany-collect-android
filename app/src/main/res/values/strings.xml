@@ -868,4 +868,38 @@
     <string name="push_permission_centre_message">Activez les notifications pour être prévenu des opérations de votre point, même quand l’app est fermée.</string>
     <string name="push_permission_enable">Activer les notifications</string>
     <string name="push_permission_settings">Ouvrir les réglages</string>
+
+    <!-- Rental kit V1 (accessories + TANY transport bag) -->
+    <string name="kit_item_with_quantity">%1$s ×%2$d</string>
+    <string name="kit_type_bag">Sac de transport TANY</string>
+    <string name="kit_handover_title">Kit à remettre</string>
+    <string name="kit_handover_hint">Tout est coché : touchez un élément seulement s’il n’est pas remis.</string>
+    <string name="kit_handover_all">Tout est remis</string>
+    <string name="kit_handover_missing_note">La remise reste possible : TANY est informé de l’écart.</string>
+    <string name="kit_state_handed_over">Remis</string>
+    <string name="kit_state_not_handed_over">Non remis</string>
+    <string name="kit_state_returned">Rendu</string>
+    <string name="kit_state_present">Présent</string>
+    <string name="kit_state_missing">Manquant</string>
+    <string name="kit_state_damaged">Endommagé</string>
+    <string name="kit_return_title">Kit rendu</string>
+    <string name="kit_return_all">Objet et accessoires rendus</string>
+    <string name="kit_all_present">Tout est présent</string>
+    <string name="kit_return_issue_note">Un élément manquant n’empêche jamais le retour : TANY examinera.</string>
+    <string name="kit_overview_title">Kit de location</string>
+    <plurals name="kit_not_handed_over_count">
+        <item quantity="one">%d élément non remis</item>
+        <item quantity="many">%d éléments non remis</item>
+        <item quantity="other">%d éléments non remis</item>
+    </plurals>
+    <plurals name="kit_return_to_check">
+        <item quantity="one">%d élément à vérifier</item>
+        <item quantity="many">%d éléments à vérifier</item>
+        <item quantity="other">%d éléments à vérifier</item>
+    </plurals>
+    <plurals name="kit_items_count">
+        <item quantity="one">%d élément</item>
+        <item quantity="many">%d éléments</item>
+        <item quantity="other">%d éléments</item>
+    </plurals>
 </resources>
